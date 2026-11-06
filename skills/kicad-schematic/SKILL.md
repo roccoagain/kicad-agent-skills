@@ -35,13 +35,15 @@ s.add("Connector:Conn_ARM_SWD_TagConnect_TC2030-NL", "J2", (196.85, 121.92),
       in_bom=False, in_pos=False)                          # footprint-only part: no BOM line, not placed
 s.box(125, 25, 215, 140, "MCU")                            # dashed block outline with a bold title
 s.text("Place C1 at U2 pin 4", 135, 50)                    # notes; "\n" for line breaks
-s.save()                                                   # writes, adds junctions, prints ERC
+s.save()                                                   # writes, adds junctions, prints lint and ERC
 ```
 
 To plan a placement:
 - `python3 sch.py symbol Lib:Name` lists a library symbol's pins: number, name, type and offset.
 - `python3 sch.py pins board.kicad_sch U2` lists where a placed symbol's pins land, and which way each points.
 - `s.pin(ref, n)` returns `(x, y, out_dx, out_dy)` inside a script.
+- `python3 sch.py lint board.kicad_sch` reports text overlapping text, wires, pins or parts, wires running through a
+  part, and points off the grid. It measures text from KiCad's own plot, and `save()` runs it.
 
 Coordinates are sheet mm, with y pointing down. Rotation is counter-clockwise, and `mirror="x"|"y"` is applied after
 rotating.
@@ -56,8 +58,8 @@ rotating.
 
 ## Drawing it readably
 
-People read schematics, so a correct netlist drawn as a tangle still hides mistakes. Look at every area you change
-(`view.py sch ... --around U2,C3`), fix what's wrong, and look again.
+People read schematics, so a correct netlist drawn as a tangle still hides mistakes. Fix every lint problem, then
+look at each area you change (`view.py sch ... --around U2,C3`) for what lint can't judge: flow, spacing, grouping.
 
 - **Blocks:** one `box()` per subcircuit (power, an IC with its passives, a connector), with signals flowing left to
   right.
@@ -89,7 +91,7 @@ People read schematics, so a correct netlist drawn as a tangle still hides mista
 
 ## After
 
-1. **ERC** prints on every save: no new errors (`kicad-check` for the full run).
+1. **ERC and lint** print on every save: no new errors or problems (`kicad-check` for the full run).
 2. **Netlist:** check every touched pin is on the intended net and nothing else changed (`view.py pins`, diff with
    before).
 3. **Look** at the area (`view.py sch --around`).

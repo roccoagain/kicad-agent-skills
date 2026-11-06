@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check a KiCad 10 project with KiCad's own checkers, and summarise the results in a few lines.
 
-    python3 check.py board.kicad_pro            # ERC, DRC with schematic parity, JLC limits, JLC recommended
+    python3 check.py board.kicad_pro            # ERC, schematic lint, DRC with parity, JLC limits and recommended
     python3 check.py board.kicad_pro --no-jlc   # just ERC and DRC
     python3 check.py board.kicad_pro --json out.json
     python3 check.py board.kicad_pro --rules-dir DIR   # JLC rule files from DIR instead (e.g. edited for 2 oz)
@@ -75,6 +75,12 @@ def main(argv):
             show("ERC", vs)
             failed |= any(v["severity"] == "error" for v in vs)
             report["erc"] = vs
+            sys.path.insert(0, os.path.join(HERE, "..", "kicad-schematic"))
+            try:
+                from sch import lint                        # readability: warnings, never a FAIL
+                report["lint"] = lint(sch, show=8)
+            except ImportError:
+                pass
         if not os.path.exists(pcb):
             return int(failed)
         drc = run_json([K, "pcb", "drc", "--format", "json", "--severity-all", "--refill-zones", "--schematic-parity",

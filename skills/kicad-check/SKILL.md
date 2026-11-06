@@ -11,7 +11,8 @@ python3 <skill dir>/check.py board.kicad_pro          # this SKILL.md's folder
 
 It runs everything below with KiCad's own checkers, changes nothing in the project, and prints a few lines per
 check, ending in PASS or FAIL:
-1. **ERC** on the schematic.
+1. **ERC** on the schematic, then **lint** (`kicad-schematic`): overlapping text and wires through parts, as
+   warnings.
 2. **DRC** with the project's rules, unrouted nets and schematic parity: the same ground as KiCad's DRC dialog.
 3. **DRC against JLCPCB's rules**, on a copy, with the rule files in this folder (2-layer or multilayer, picked from
    the board). It reports only findings the project's DRC didn't:

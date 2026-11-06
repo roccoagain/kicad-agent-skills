@@ -5,9 +5,10 @@ description: "Plan and route a KiCad 10 board: net classes and rules, track widt
 
 # Route a board
 
-Routing comes after placement (`kicad-placement`). Make the edits with `board.py` (`kicad-board-edit`): `track`,
-`via`, `gnd_via` and `zone`. There is no command-line autorouter, so work out coordinates from the pad positions,
-and run DRC (printed on every save) until nothing is unconnected.
+Routing comes after placement (`kicad-placement`). Make the edits with `board.py` (`kicad-board-edit`): `connect`,
+`track`, `via`, `gnd_via` and `zone`. Route by hand, net by net: every track is a decision about return paths,
+clearance and how the board reads, which an autorouter doesn't make. Run DRC (printed on every save) until nothing
+is unconnected.
 
 ## 1. Rules: net classes and minimums
 
@@ -124,10 +125,6 @@ Route the most sensitive nets first:
   has none.
 - **Connectors:** in a 3D render, check that each cable can leave its connector and that each plug has room.
 - **Tangles:** rip up a tangled region and route it again in order, rather than patching it.
-- **Autorouting:** use Freerouting only with the user's agreement, and only on dense boards. Route and lock the
-  critical nets first, then review the result against this skill. Ask before starting to route, not midway: it's a
-  download from GitHub, which a sandbox or auto-permission mode may block. Without it, plan the time. Hand-routing
-  even a 15-net, 2-layer board through coordinates takes many DRC rounds.
 
 ## 8. Doing it with board.py
 
@@ -135,8 +132,8 @@ Route the most sensitive nets first:
    points with 45° or 90° bends. For each segment, check its distance to other nets' pads and tracks: at least the
    clearance plus half of each width. Escape fine-pitch pins straight out, then turn. Tracks may run under an IC's
    body between its pad rows.
-2. **One routing script**, run in a fresh process after placement: tracks by `b.pad(ref, n)`, explicit corner points,
-   vias where a net changes layer, `gnd_via` beside each ground pad, `zone("GND", ...)` last. `save()` prints DRC.
+2. **One routing script**, run in a fresh process after placement: `connect` pad to pad (adding a waypoint where the
+   path must turn), `track` where every corner matters, vias where a net changes layer, `gnd_via` beside each ground pad, `zone("GND", ...)` last. `save()` prints DRC.
    A "starved thermal" error on a pad boxed in by tracks: connect it with a track, or pour with `pads="solid"` on a
    reflow-assembled board.
 3. **Iterate on the script, not the board:** start the routing script with `remove_tracks(nets=["*"]);

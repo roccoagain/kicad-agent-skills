@@ -6,16 +6,19 @@
     b = Board("board.kicad_pcb")
     b.place("C3", 119.6, 115.35, rot=270)                   # mm, degrees CCW; side="B" flips
     print(b.pad("U2", "4"), b.pads("U2"))                    # pad centres (after any place() so far)
-    b.track("+3V3", [b.pad("C3", "1"), (120.4, 115.0), b.pad("U2", "4")], width=0.4)
+    b.connect(("C3", "1"), ("U2", "4"))                     # net, width and layer from the pads; one 45° bend
+    b.track("/SDA", [("U2", "9"), (120.4, 115.0), (128.9, 115.0)], layer="B.Cu")   # explicit corners
     b.via(118.75, 117.1, "GND")                              # 0.6 / 0.3 mm by default
     b.gnd_via("C3", "2", dx=-0.9, dy=0)                      # via plus a stub from the pad
     b.zone("GND", ["F.Cu", "B.Cu"])                          # pour over the board outline
     b.set_pad_net("J2", "2", "/NRST")                        # after a pin swap made in the schematic
     b.remove_tracks(nets=["/SDA"], region=(120, 110, 135, 120))
     b.label("C3", 119.6, 113.2)                              # silkscreen reference; or b.auto_labels()
+    b.score()                                                # placement metrics, before or instead of saving
     b.save()                                                 # writes, refills zones, runs DRC with parity
 
     python3 board.py pads board.kicad_pcb [REF ...]          # pad positions and nets (KiCad's Python)
+    python3 board.py score board.kicad_pcb [--skip GND]      # airwires, crossings, courtyard overlaps, edge
     python3 board.py sync board.kicad_pcb [x y]              # bring the board in line with the schematic
     python3 board.py new board.kicad_pcb W H [--holes M3]    # new board with a rounded outline at (100, 100)
     python3 board.py rules board.kicad_pro [--power +5V,+3V3,GND] [--power-width 0.5]   # JLC minimums, net classes
@@ -28,7 +31,9 @@ back broken, for the rest of the process. So places, field changes and labels ap
 remove is queued and applied in save(). Read everything you need (pad positions) before save(), and start a new
 process for the next edit.
 """
+import fnmatch
 import json
+import math
 import os
 import re
 import subprocess
@@ -141,9 +146,10 @@ def drc(board_path, refill=True, parity=True, rules=None, show=15):
 
 # ----------------------------------------------------------------------------- the board
 class Board:
-    def __init__(self, path):
+    def __init__(self, path, check_lock=True):
         self.path = os.path.abspath(path)
-        _check_closed(self.path)
+        if check_lock:
+            _check_closed(self.path)
         self.board = pcbnew.LoadBoard(self.path)
         self.fps = {fp.GetReference(): fp for fp in self.board.GetFootprints()}
         self.nets = {}
@@ -292,19 +298,71 @@ class Board:
         return failed
 
     # ------------------------------------------------------------------ queued edits (applied in save)
-    def track(self, net, points, width=0.25, layer="F.Cu"):
-        """Track segments through points [(x, y), ...] (pad centres from pad()). Keep bends at 45° or 90°."""
+    def class_width(self, net):
+        """The track width of the net's class in the .kicad_pro (explicit assignment, then patterns, then Default)."""
+        try:
+            ns = json.load(open(os.path.splitext(self.path)[0] + ".kicad_pro"))["net_settings"]
+        except (OSError, ValueError, KeyError):
+            return 0.25
+        widths = {c["name"]: c.get("track_width", 0.25) for c in ns.get("classes", [])}
+        name = (ns.get("netclass_assignments") or {}).get(net)
+        name = name or next((p["netclass"] for p in ns.get("netclass_patterns") or []
+                             if fnmatch.fnmatchcase(net, p["pattern"])), "Default")
+        return widths.get(name, widths.get("Default", 0.25))
+
+    def _xy(self, p):
+        return self.pad(*p) if isinstance(p[0], str) else (float(p[0]), float(p[1]))
+
+    def track(self, net, points, width=None, layer="F.Cu"):
+        """Track segments through points: (x, y) or a pad (ref, num). Width defaults to the net's class. Keep
+        bends at 45° or 90°."""
         self._net(net)
-        pts = [tuple(p) for p in points]
-        self._tracks.append((net, pts, width, self._layer(layer)))
+        pts = [self._xy(p) for p in points]
+        self._tracks.append((net, pts, width or self.class_width(net), self._layer(layer)))
         return pts[-1]
+
+    def connect(self, *points, first="straight", net=None, width=None, layer=None):
+        """Track through points, each a pad (ref, num) or (x, y), with one bend per leg: first="straight" runs
+        along the longer axis then turns 45° into the end; "diagonal" turns first; "x" or "y" make a 90° elbow,
+        horizontal or vertical first. Net comes from the pads, width from its class, layer from SMD pads
+        (else F.Cu). Returns the end point."""
+        nets, sides = set(), set()
+        for p in points:
+            if isinstance(p[0], str):
+                pad = self._pad(*p)
+                nets.add(pad.GetNetname())
+                if pad.GetAttribute() == pcbnew.PAD_ATTRIB_SMD:
+                    sides.add("B.Cu" if pad.IsOnLayer(pcbnew.B_Cu) else "F.Cu")
+        if net is None and len(nets) != 1:
+            raise ValueError(f"connect: pads are on nets {sorted(nets) or '(none)'}; they must share one, or pass net=")
+        if net and nets - {net}:
+            raise ValueError(f"connect: net={net!r} but the pads are on {sorted(nets)}")
+        net = net or nets.pop()
+        if layer is None:
+            if len(sides) > 1:
+                raise ValueError("connect: SMD pads on both sides; route to a via() and connect each side")
+            layer = sides.pop() if sides else "F.Cu"
+        pts = [self._xy(p) for p in points]
+        path = [pts[0]]
+        for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+            dx, dy = x2 - x1, y2 - y1
+            ax, ay = abs(dx), abs(dy)
+            sx, sy = math.copysign(1, dx), math.copysign(1, dy)
+            if min(ax, ay) > 1e-6 and abs(ax - ay) > 1e-6:
+                m = min(ax, ay)
+                corner = {"x": (x2, y1), "y": (x1, y2),
+                          "diagonal": (x1 + sx * m, y1 + sy * m),
+                          "straight": (x2 - sx * m, y1) if ax > ay else (x1, y2 - sy * m)}[first]
+                path.append((round(corner[0], 4), round(corner[1], 4)))
+            path.append((x2, y2))
+        return self.track(net, path, width, layer)
 
     def via(self, x, y, net, dia=0.6, drill=0.3):
         self._net(net)
         self._vias.append((x, y, net, dia, drill))
         return (x, y)
 
-    def gnd_via(self, ref, num, dx, dy, width=0.4, net="GND", dia=0.6, drill=0.3, layer="F.Cu"):
+    def gnd_via(self, ref, num, dx, dy, width=None, net="GND", dia=0.6, drill=0.3, layer="F.Cu"):
         """A via at an offset from a pad, joined by a short stub. Returns the via position."""
         x, y = self.pad(ref, num)
         self.via(x + dx, y + dy, net, dia, drill)
@@ -382,6 +440,94 @@ class Board:
             for c, s in [((x2 - r, y1 + r), (x2 - r, y1)), ((x2 - r, y2 - r), (x2, y2 - r)),
                          ((x1 + r, y2 - r), (x1 + r, y2)), ((x1 + r, y1 + r), (x1, y1 + r))]:
                 self._shapes.append(("arc", c, s, width))
+
+    # ------------------------------------------------------------------ placement metrics
+    def score(self, skip=None, margin=0.5, show=6):
+        """Placement metrics from pad centres, reflecting place() calls so far: airwire length (a minimum spanning
+        tree per net), airwire crossings between nets, courtyard overlaps, parts within margin of the board edge
+        (negative: past it), and how much of the board the courtyards cover. Nets in skip, and nets with a pour,
+        are left out. Prints a summary; returns it as a dict. Lower length and zero crossings/overlaps is better."""
+        poured = {z.GetNetname() for z in self.board.Zones()}
+        skip = set(skip or ()) | poured
+        nets = {}
+        for ref, fp in self.fps.items():
+            for p in fp.Pads():
+                n = p.GetNetname()
+                if n and n not in skip and not n.startswith("unconnected-"):
+                    q = p.GetPosition()
+                    nets.setdefault(n, {})[(ref, p.GetNumber())] = (TOMM(q.x), TOMM(q.y))
+        wires, per_net, per_part = [], {}, {}
+        for n, pads in nets.items():
+            keys = list(pads)
+            if len(keys) < 2:
+                continue
+            tree, best = {keys[0]}, {k: (math.dist(pads[keys[0]], pads[k]), keys[0]) for k in keys[1:]}
+            while best:                                     # Prim's algorithm
+                k = min(best, key=lambda k: best[k][0])
+                d, frm = best.pop(k)
+                tree.add(k)
+                wires.append((n, pads[frm], pads[k]))
+                per_net[n] = per_net.get(n, 0) + d
+                for r in {frm[0], k[0]}:
+                    per_part[r] = per_part.get(r, 0) + d / 2
+                for o in best:
+                    if math.dist(pads[k], pads[o]) < best[o][0]:
+                        best[o] = (math.dist(pads[k], pads[o]), k)
+
+        def cross(a, b, c, d):
+            def o(p, q, r):
+                return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+            if {a, b} & {c, d}:
+                return False
+            return o(a, b, c) * o(a, b, d) < -1e-9 and o(c, d, a) * o(c, d, b) < -1e-9
+        crossings = []
+        for i, (n1, a, b) in enumerate(wires):
+            for n2, c, d in wires[i + 1:]:
+                if n1 != n2 and cross(a, b, c, d):
+                    crossings.append((n1, n2, ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)))
+
+        def courtyard(fp):
+            cy = fp.GetCourtyard(pcbnew.B_CrtYd if fp.IsFlipped() else pcbnew.F_CrtYd)
+            return cy if cy.OutlineCount() else None
+        for fp in self.fps.values():
+            fp.BuildCourtyardCaches()                       # place() moved them
+        cys = {r: courtyard(fp) for r, fp in self.fps.items()}
+        overlaps, refs = [], sorted(r for r in cys if cys[r])
+        for i, r1 in enumerate(refs):
+            for r2 in refs[i + 1:]:
+                if self.fps[r1].IsFlipped() != self.fps[r2].IsFlipped() or \
+                        not cys[r1].BBox().Intersects(cys[r2].BBox()):
+                    continue
+                x = pcbnew.SHAPE_POLY_SET(cys[r1]); x.BooleanIntersection(cys[r2])
+                if x.Area() / 1e12 > 0.001:
+                    overlaps.append((r1, r2, round(x.Area() / 1e12, 3)))
+        e = self._edge()
+        edge = []
+        for r, fp in self.fps.items():
+            bb = cys[r].BBox() if cys[r] else fp.GetBoundingBox(False)
+            d = min(TOMM(bb.GetLeft()) - e[0], TOMM(bb.GetTop()) - e[1], e[2] - TOMM(bb.GetRight()),
+                    e[3] - TOMM(bb.GetBottom()))
+            if d < margin:
+                edge.append((r, round(d, 2)))
+        area = (e[2] - e[0]) * (e[3] - e[1])
+        cover = sum(c.Area() for c in cys.values() if c) / 1e12 / area if area else 0
+        total = sum(per_net.values())
+        print(f"score: airwires {total:.1f} mm over {len(per_net)} nets, {len(crossings)} crossings, "
+              f"{len(overlaps)} courtyard overlaps; board {e[2] - e[0]:g} x {e[3] - e[1]:g} mm, "
+              f"courtyards cover {cover:.0%}" + (f"; skipped {', '.join(sorted(skip))}" if skip else ""))
+        top = sorted(per_net.items(), key=lambda kv: -kv[1])[:show]
+        print("  longest nets: " + ", ".join(f"{n} {d:.1f}" for n, d in top))
+        top = sorted(per_part.items(), key=lambda kv: -kv[1])[:show]
+        print("  most airwire: " + ", ".join(f"{r} {d:.1f}" for r, d in top))
+        if crossings:
+            print("  crossings: " + ", ".join(f"{a} x {b} ({x:.1f}, {y:.1f})" for a, b, (x, y) in crossings[:show])
+                  + (" ..." if len(crossings) > show else ""))
+        if overlaps:
+            print("  overlaps: " + ", ".join(f"{a}/{b} {s:g} mm²" for a, b, s in overlaps))
+        if edge:
+            print(f"  within {margin:g} mm of the edge: " + ", ".join(f"{r} {d:g}" for r, d in sorted(edge)))
+        return dict(airwire=total, nets=per_net, parts=per_part, crossings=crossings, overlaps=overlaps,
+                    edge=edge, cover=cover)
 
     # ------------------------------------------------------------------ save
     def _selected_removals(self):
@@ -656,11 +802,10 @@ def set_rules(pro_path, clearance=0.2, track=0.25, via=(0.6, 0.3), classes=None)
 
 
 def main(argv):
-    if len(argv) >= 2 and argv[0] == "pads":
-        b = Board.__new__(Board)
-        b.path, b._saved = os.path.abspath(argv[1]), False
-        b.board = pcbnew.LoadBoard(b.path)
-        b.fps = {fp.GetReference(): fp for fp in b.board.GetFootprints()}
+    if len(argv) >= 2 and argv[0] == "score":
+        Board(argv[1], check_lock=False).score(argv[argv.index("--skip") + 1].split(",") if "--skip" in argv else None)
+    elif len(argv) >= 2 and argv[0] == "pads":
+        b = Board(argv[1], check_lock=False)
         for ref in argv[2:] or sorted(b.fps, key=lambda r: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", r)]):
             x, y, rot = b.position(ref)
             print(f"{ref} at ({x:g}, {y:g}) rot {rot:g}{' bottom' if b.fps[ref].IsFlipped() else ''}")

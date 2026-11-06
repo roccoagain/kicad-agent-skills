@@ -14,7 +14,7 @@
     s.nc("U2", "7")
     s.set_field("R3", "Value", "1k")                      # existing or new part
     s.box(20, 25, 120, 85, "POWER INPUT")
-    s.save()                                              # writes, adds junctions, runs ERC, prints a summary
+    s.save()                                              # writes, adds junctions, runs ERC and lint
 
 Coordinates are schematic mm, y down, on the 1.27 mm grid. Rotation is counter-clockwise on screen, mirror is
 applied after rotation (as KiCad does). Every pin end comes from the library symbol, so wires always land on pins.
@@ -27,8 +27,10 @@ file; existing text is left byte for byte, so the diff shows only the change.
 Command line:
     python3 sch.py symbol Device:R_Small          # a library symbol's pins: number, name, type, offset
     python3 sch.py pins board.kicad_sch U2        # a placed symbol's pin ends on the sheet
+    python3 sch.py lint board.kicad_sch           # overlapping text, wires through parts, off-grid points
 """
 import glob
+import html
 import json
 import math
 import os
@@ -585,8 +587,8 @@ class Schematic:
         self.removals = []
         return text
 
-    def save(self, erc=True):
-        """Write the file (adds junctions first) and, by default, run ERC and print its summary.
+    def save(self, erc=True, lint=True):
+        """Write the file (adds junctions first) and, by default, run ERC and lint() and print their summaries.
         Returns the ERC violations as a list of dicts."""
         text = self._apply_removals(self._src) if self.removals else self._src
         self._auto_junctions()
@@ -637,6 +639,8 @@ class Schematic:
             self.placed[ref] = s
         self.new_syms = {}
         print(f"saved {os.path.basename(self.path)}: {n_new} symbols added")
+        if lint:
+            globals()["lint"](self.path)
         return erc_report(self.path) if erc else None
 
 
@@ -673,6 +677,153 @@ def erc_report(path, show=12):
     return vs
 
 
+# ----------------------------------------------------------------------------- lint
+def _boxes_hit(a, b, m=0.0):
+    return a[0] + m < b[2] and b[0] + m < a[2] and a[1] + m < b[3] and b[1] + m < a[3]
+
+
+def _seg_hits_box(p, q, box):
+    """Does segment p-q pass through the inside of box (x0, y0, x1, y1)? (Liang-Barsky clipping)"""
+    t0, t1 = 0.0, 1.0
+    dx, dy = q[0] - p[0], q[1] - p[1]
+    for d, lo, hi, v in ((dx, box[0], box[2], p[0]), (dy, box[1], box[3], p[1])):
+        if abs(d) < 1e-9:
+            if not lo < v < hi:
+                return False
+            continue
+        a, b = (lo - v) / d, (hi - v) / d
+        t0, t1 = max(t0, min(a, b)), min(t1, max(a, b))
+    return t1 - t0 > 1e-6
+
+
+def _rendered_text(path):
+    """[(string, (x0, y0, x1, y1))] for every text KiCad draws on the sheet, from its own SVG plot."""
+    with tempfile.TemporaryDirectory() as d:
+        r = subprocess.run([kicad_cli(), "sch", "export", "svg", "-o", d, path], capture_output=True, text=True)
+        stem = os.path.splitext(os.path.basename(path))[0]
+        svgs = sorted(glob.glob(os.path.join(d, "*.svg")), key=lambda f: os.path.basename(f) != stem + ".svg")
+        if not svgs:
+            raise RuntimeError("SVG export failed:\n" + r.stdout + r.stderr)
+        svg = open(svgs[0]).read()
+    out = []
+    for m in re.finditer(r'<g class="stroked-text"><desc>(.*?)</desc>(.*?)</g>', svg, re.S):
+        pts = [(float(x), float(y)) for x, y in re.findall(r"[ML]\s*(-?[\d.]+)[ ,](-?[\d.]+)", m.group(2))]
+        if pts:
+            xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+            out.append((html.unescape(m.group(1)), (min(xs), min(ys), max(xs), max(ys))))
+    return out
+
+
+def lint(path, show=15):
+    """Check what ERC can't: text overlapping text, wires, pins or parts; wires through a part's body; points off
+    the 1.27 mm grid. Text boxes come from KiCad's own plot, so they're exact. Prints and returns the problems."""
+    sch = Schematic(path, check_lock=False)
+    tree = parse(sch._src)
+    bodies, pin_segs, texts, wires = {}, [], [], list(sch.wires)
+    for n in children(tree, "symbol"):
+        ref = next(uq(p[2]) for p in children(n, "property") if uq(p[1]) == "Reference")
+        st = sch.placed.get(ref) or {}
+        if not st:
+            continue
+        lib = sch._lib(st["lib_id"])
+        base = uq(lib[1]).split(":", 1)[-1]
+        pts = []
+        for sub in children(lib, "symbol"):
+            mm = re.match(re.escape(base) + r"_(\d+)_(\d+)$", uq(sub[1]))
+            if not mm or int(mm.group(1)) not in (0, st["unit"]) or mm.group(2) not in ("0", "1"):
+                continue
+            for g in sub[1:]:
+                if not isinstance(g, list):
+                    continue
+                if g[0] == "rectangle":
+                    pts += [(float(child(g, k)[1]), float(child(g, k)[2])) for k in ("start", "end")]
+                elif g[0] in ("polyline", "bezier"):
+                    pts += [(float(xy[1]), float(xy[2])) for xy in children(child(g, "pts"), "xy")]
+                elif g[0] == "circle":
+                    c, r = child(g, "center"), float(child(g, "radius")[1])
+                    pts += [(float(c[1]) - r, float(c[2]) - r), (float(c[1]) + r, float(c[2]) + r)]
+                elif g[0] == "arc":
+                    pts += [(float(child(g, k)[1]), float(child(g, k)[2])) for k in ("start", "mid", "end")]
+                elif g[0] == "pin":
+                    at, ln = child(g, "at"), float(child(g, "length")[1])
+                    a = math.radians(float(at[3]) if len(at) > 3 else 0)
+                    e = (float(at[1]), float(at[2]))
+                    seg = [e, (e[0] + ln * math.cos(a), e[1] + ln * math.sin(a))]
+                    seg = [(st["x"] + dx, st["y"] + dy) for dx, dy in (xf(x, y, st["rot"], st["mirror"]) for x, y in seg)]
+                    if ln > 0:
+                        pin_segs.append((ref, seg[0], seg[1]))
+        if pts:
+            sp = [(st["x"] + dx, st["y"] + dy) for dx, dy in (xf(x, y, st["rot"], st["mirror"]) for x, y in pts)]
+            bodies[ref] = (min(p[0] for p in sp), min(p[1] for p in sp), max(p[0] for p in sp), max(p[1] for p in sp))
+        for p in children(n, "property"):
+            at = child(p, "at")
+            texts.append((uq(p[2]), f"{ref} {uq(p[1])}", (float(at[1]), float(at[2])), ref))
+    for kind in ("label", "global_label", "hierarchical_label", "text"):
+        for lb in children(tree, kind):
+            at = child(lb, "at")
+            texts.append((uq(lb[1]), kind.replace("_", " "), (float(at[1]), float(at[2])), None))
+    owners = {}
+    for s_, owner, anchor, ref in texts:                    # match each rendered text to the item that drew it
+        for line in s_.split("\n"):
+            owners.setdefault(line, []).append((owner, anchor, ref))
+    rendered, problems = [], []
+    for s_, box in _rendered_text(path):
+        cands = owners.get(s_, [])
+        best = min(cands, key=lambda c: math.dist(c[1], ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)), default=None)
+        if best and math.dist(best[1], ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)) < 8:
+            rendered.append((s_, best[0], best[1], best[2], box))
+        else:
+            rendered.append((s_, None, None, None, box))   # pin names and numbers, title block
+
+    def where(b):
+        return f"({(b[0] + b[2]) / 2:.2f}, {(b[1] + b[3]) / 2:.2f})"
+    ours = [t for t in rendered if t[1]]
+    for i, (s1, o1, a1, r1, b1) in enumerate(ours):
+        for s2, o2, a2, r2, b2 in rendered:
+            if (s2, o2, b2) == (s1, o1, b1) or (o2 and ours.index((s2, o2, a2, r2, b2)) < i):
+                continue
+            if _boxes_hit(b1, b2, 0.05):
+                problems.append(f'text "{s1}" ({o1}) overlaps "{s2}" ({o2 or "pin or title text"}) at {where(b1)}')
+        for p, q_ in wires:
+            if o1.endswith("label") and (_on_wire(a1, (p, q_)) or a1 in (p, q_)):
+                continue
+            if _seg_hits_box(p, q_, (b1[0] + 0.05, b1[1] + 0.05, b1[2] - 0.05, b1[3] - 0.05)):
+                problems.append(f'text "{s1}" ({o1}) crosses a wire at {where(b1)}')
+                break
+        for ref, p, q_ in pin_segs:
+            if _seg_hits_box(p, q_, (b1[0] + 0.05, b1[1] + 0.05, b1[2] - 0.05, b1[3] - 0.05)):
+                problems.append(f'text "{s1}" ({o1}) crosses a pin of {ref} at {where(b1)}')
+                break
+        for ref, bb in bodies.items():
+            if (ref == r1 and ref.startswith("#")) or not _boxes_hit(b1, bb, 0.05):
+                continue
+            problems.append(f'text "{s1}" ({o1}) overlaps the body of {ref} at {where(b1)}')
+    for p, q_ in wires:
+        for ref, bb in bodies.items():
+            if not ref.startswith("#") and _seg_hits_box(p, q_, (bb[0] + 0.1, bb[1] + 0.1, bb[2] - 0.1, bb[3] - 0.1)):
+                problems.append(f"wire ({p[0]:g}, {p[1]:g})-({q_[0]:g}, {q_[1]:g}) runs through {ref}")
+    refs = sorted(r for r in bodies if not r.startswith("#"))
+    for i, r1 in enumerate(refs):
+        for r2 in refs[i + 1:]:
+            if _boxes_hit(bodies[r1], bodies[r2]):
+                problems.append(f"{r1} and {r2} overlap")
+
+    def off(v):
+        return abs(v / GRID - round(v / GRID)) > 0.01
+    pts = [("wire end", p) for w in wires for p in w] + [("label", p) for p in sch.points]
+    pts += [(f"{r} pin {n}", (x, y)) for r in sch.placed for n, (x, y, _, _) in sch.pins(r).items()]
+    for what, (x, y) in pts:
+        if off(x) or off(y):
+            problems.append(f"off grid: {what} at ({x:g}, {y:g})")
+    problems = list(dict.fromkeys(problems))
+    print(f"lint: {len(problems)} problems" + (":" if problems else ""))
+    for p in problems[:show]:
+        print("  " + p)
+    if len(problems) > show:
+        print(f"  ... {len(problems) - show} more")
+    return problems
+
+
 # ----------------------------------------------------------------------------- command line
 def main(argv):
     if len(argv) >= 2 and argv[0] == "symbol":
@@ -691,6 +842,8 @@ def main(argv):
         s = Schematic(argv[1], check_lock=False)
         for num, (x, y, ox, oy) in sorted(s.pins(argv[2]).items(), key=lambda kv: _natural(kv[0])):
             print(f"  {num:>4}  ({x:g}, {y:g})  points {({(1, 0): 'right', (-1, 0): 'left', (0, -1): 'up', (0, 1): 'down'})[(ox, oy)]}")
+    elif len(argv) == 2 and argv[0] == "lint":
+        return 1 if lint(argv[1], show=100) else 0
     else:
         print(__doc__)
         return 2

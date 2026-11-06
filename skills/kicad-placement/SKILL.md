@@ -114,13 +114,16 @@ a cap and an escaping track compete, the cap stays and the track goes around.
 2. **Move parts** with `board.py` (`kicad-board-edit`): one placement script holding every part's `place(ref, x, y,
    rot)`, rerun whenever placement changes. End it with `auto_labels()` and save. Print the pads (`board.py pads`)
    to plan the next block.
-3. **Check each block.** Run DRC (`kicad-check`), look at the result (`kicad-view`), and confirm that every
+3. **Compare candidates by number.** `b.score()` after the `place()` calls, without saving, prints airwire length,
+   crossings, courtyard overlaps and edge distances. Try a rotation or a swap, rerun, keep the better one. Fewer
+   crossings mean fewer vias; the parts with the most airwire are the ones to move.
+4. **Check each block.** Run DRC (`kicad-check`), look at the result (`kicad-view`), and confirm that every
    close-coupled part is within about two body lengths of its pin.
-4. **Conflicts.** Before you move a critical part away from its pin, try at least two alternatives:
+5. **Conflicts.** Before you move a critical part away from its pin, try at least two alternatives:
    - another rotation;
    - swapping two parts;
    - moving a neighbour that can tolerate distance.
 
    Report anything left unsatisfied.
-5. **Design notes.** Record where each block sits and why.
+6. **Design notes.** Record where each block sits and why.
 6. **Next step:** route with `kicad-routing`.
