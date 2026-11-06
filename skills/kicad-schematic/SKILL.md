@@ -61,6 +61,10 @@ A placed symbol needs four things.
 
 Make every UUID new: `python3 -c 'import uuid; print(uuid.uuid4())'`.
 
+**Generating a whole sheet from a script** is fine for a new design, but once a board exists, don't regenerate: new
+symbol UUIDs break every board part's link to its symbol, and parity fails. Edit the file in place from then on, or
+make the generator's UUIDs stable (for example `uuid5` of the reference).
+
 ### Pin position
 
 A library pin's `(at px py angle)` is its connection end, where wires attach. Library y points up. For a symbol at
@@ -70,6 +74,9 @@ A library pin's `(at px py angle)` is its connection end, where wires attach. Li
 3. Mirror after rotating: `(mirror y)` negates `dx`, and `(mirror x)` negates `dy`.
 
 Mirroring before rotating puts the pins in the wrong place.
+
+Check one case by hand: `Device:R_Small` and `C_Small` have pin 1 at library `(0, 2.54)`, so at 0° pin 1 is on
+**top** on screen (y = Y − 2.54). Wiring the supply to pin 2 draws the part upside down.
 
 ## Wiring
 
@@ -82,6 +89,8 @@ Mirroring before rotating puts the pins in the wrong place.
 - **Global connections:** `(global_label ...)` connects across sheets. Power symbols act as global labels, with their
   pin at their origin.
 - **Unused pins:** put a `(no_connect (at x y) (uuid ...))` on the pin end.
+- **Multi-line text:** write a line break inside a string as the two characters `\n`. A raw newline makes
+  `kicad-cli` fail with only "Failed to load schematic", and no line number.
 - **PWR_FLAG:** if a rail is fed only by a connector or a regulator output, ERC reports "input power pin not driven".
   Put one `power:PWR_FLAG` on that net instead of silencing ERC.
 

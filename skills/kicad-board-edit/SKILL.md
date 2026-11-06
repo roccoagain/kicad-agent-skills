@@ -160,12 +160,21 @@ It was tested on a 58-part board: zero parity issues.
    - **added:** place and route the new parts.
    - **CHECK: schematic says X, board has Y:** delete the old part and its tracks with the API, then re-run the script.
    - **CHECK: pad n: board net A, schematic B:** re-route that pad. Renamed nets keep their old name on tracks until you
-     change them.
+     change them. On a pad with no tracks yet, fix it with `pcbnew` (editor closed):
+     `pad.SetNet(board.FindNet("/NRST"))`, then save.
    - **CHECK: not in the schematic:** delete the part, or call `fp.SetBoardOnly(True)` if it's mechanical.
 5. Run DRC with `--schematic-parity`. It should report no parity issues.
 
 Libraries resolve the way KiCad resolves them: the project's `fp-lib-table` first, then the global table. Environment
 variables override the script's defaults. When the API gains footprint loading, switch to the API.
+
+## First placement on a new board
+
+Before anything is routed, placing parts with `pcbnew` and the editor closed is simpler than the API, and needs no
+socket: `fp.SetPosition(pcbnew.VECTOR2I(pcbnew.FromMM(x), pcbnew.FromMM(y)))`, `fp.SetOrientationDegrees(r)`, then
+`board.Save(path)`. Rotating this way keeps the 3D models (checked with `sch_to_board.py`, KiCad 10.0.5). Keep the
+positions in a JSON file in `<scratch>` and re-run the script while iterating. Print the pad positions afterwards
+for the next step. Use the API once the user has the board open, or for routing edits.
 
 ## Rules
 

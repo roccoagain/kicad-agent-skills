@@ -30,6 +30,15 @@ If a rule below conflicts with one of these on a particular board, follow the ef
    5. bulk caps and pull-ups.
 5. **The rest.** Leave lanes for routing.
 
+**Assign pins with the floor plan, before the schematic is final.** On an MCU with alternate functions, and on any
+connector or programming header whose pin order is free, choose pins from where the other end will sit. Check:
+- which side of the IC each bus leaves from;
+- which signals would have to cross each other;
+- that a header's order follows the order its signals arrive in.
+
+For example, I2C split between opposite sides of a TSSOP, or an SWD header ordered against its pins, forces vias
+or long detours. Changing a pin after placement means a schematic edit, a `sch_to_board.py` run, and pad-net fixes.
+
 Compute positions from pad coordinates. Placing by eye is often 0.3 mm off, which is half an 0201.
 
 ## By part type

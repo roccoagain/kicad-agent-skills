@@ -124,7 +124,9 @@ Route the most sensitive nets first:
 - **Connectors:** in a 3D render, check that each cable can leave its connector and that each plug has room.
 - **Tangles:** rip up a tangled region and route it again in order, rather than patching it.
 - **Autorouting:** use Freerouting only with the user's agreement, and only on dense boards. Route and lock the
-  critical nets first, then review the result against this skill.
+  critical nets first, then review the result against this skill. Ask before starting to route, not midway: it's a
+  download from GitHub, which a sandbox or auto-permission mode may block. Without it, plan the time. Hand-routing
+  even a 15-net, 2-layer board through coordinates takes many DRC rounds.
 
 ## 8. Through the API
 
