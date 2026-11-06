@@ -43,7 +43,6 @@ behind it.
 | Resistor power | V²/R at worst case, under the rating (0805 ≈ 0.125 W, 1206 ≈ 0.25 W unless stated) |
 | Capacitor voltage | Under the rating. Electrolytics are never reverse-biased by more than ≈ 0.5 V |
 | Ceramic DC bias | X5R/X7R run at no more than ~50 % of rated voltage, or the maker's bias curve shows enough capacitance |
-| Signal-path dielectric | C0G or film in audio, precision and filter paths. Class-2 dielectrics distort and are microphonic |
 | MOSFETs, switches | Vgs and Vds inside ratings, current under the limit, and the gate never floats |
 | Output loads | At least the minimum load impedance, and current under the limit, including a shorted connector |
 | ESD | Every exposed pin has a TVS or ESD diode at the connector, rated for the signal's swing |

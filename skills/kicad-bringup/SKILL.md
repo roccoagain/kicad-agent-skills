@@ -13,26 +13,14 @@ recomputed after a change. Read the circuit (`kicad-view`: the PDF and the pin l
 
 1. **Header:** the board, its revision, and the schematic the numbers come from. Run the stages in order and stop at
    the first failure.
-2. **Circuit summary:** a table of blocks, giving the parts, what each block does, and where to probe it.
-3. **Pinouts:** every pin the steps refer to, taken from the netlist.
-4. **Equipment:**
-   - a current-limited supply, a DMM and a scope;
-   - a signal source and loads;
-   - a magnifier, flux and wick.
-5. **Stages 0–3:** one table per stage, with the columns `# | Measure / do | Expect | A wrong reading means`.
-6. **Log:** one copy per board serial, recording the date, who tested, each reading, pass or fail, and notes.
+2. **Circuit summary:** the blocks, their parts, and where to probe each.
+3. **Stages 0–3:** one table per stage, with the columns `# | Measure / do | Expect | A wrong reading means`.
+4. **Log:** one copy per board serial: date, tester, each reading, pass or fail.
 
 ## Stage 0: visual, unpowered
 
-- **Joints:** inspect every joint under magnification. Name the fine-pitch parts and the pin pairs most likely to
-  bridge.
-- **Polarity:** check the orientation of each polarised part:
-  - ICs by the pin-1 mark;
-  - diodes and LEDs by the cathode;
-  - electrolytic and tantalum capacitors by the + mark;
-  - transistors by the marking.
-- **Values:** spot-check parts that are easy to swap (same package, different value), and name them.
-- **Mechanical:** connectors are seated and the board fits.
+Name the fine-pitch parts and the pin pairs most likely to bridge, the polarised parts, and the parts easy to swap
+(same package, different value).
 
 ## Stage 1: unpowered resistance, no modules fitted
 
@@ -55,29 +43,16 @@ does.
 - **What's left out:** fit nothing optional yet. List exactly what stays out: modules, jumpers and loads.
 - **Current limit:** add up the expected draw (quiescent currents, LEDs, divider currents) and add about 50 %. Show the
   sum. Keep the limit within what the input protection can take.
-- **Order:**
-  1. Ramp the supply slowly while watching the current.
-  2. Measure each rail at its decoupling cap.
-  3. Measure each reference and bias point.
-  4. Check the ICs for heat.
 - **Expected voltages:** include the regulator's accuracy and the resistor and supply tolerances. For example, a
   10k/10k divider of 1 % parts on 5.00 V gives 2.5 V ± 1 %, plus the supply's own tolerance.
 - **Modules:** add them one at a time. Raise the limit by each module's draw, then repeat the rail checks.
 
 ## Stage 3: function, block by block
 
-For each block, give the input to apply, the probe point, and the expected result with its working:
-- **Gain stages:** a stated sine in; out = gain × in, with no clipping up to the largest input the notes promise.
-- **Filters:** the level in the passband and at the corner frequency.
-- **Digital links:** a loopback or a known command, and what the firmware or logic analyser should show.
-- **Switches, enables, mutes:** the logic level in each state, and the pull-up or pull-down that sets it.
-- **Protection (optional):** a gentle test, at a low current limit, of each misuse case that `kicad-design-review` says
-  the board survives. Say what the test risks.
+For each block: the input to apply, the probe point, and the expected result with its working. Misuse cases that
+`kicad-design-review` says the board survives may be tested gently, at a low current limit; say what the test risks.
 
 ## Keeping it right
 
-- **Recompute after changes.** After a schematic change, recompute every reading it touches. A plan that disagrees with
-  the schematic is worse than none.
-- **Names and probe points.** Use the schematic's part and net names. Choose probe points a tester can reach: test
-  points, capacitor pads and connector pins.
-- **Working.** Keep the working for each number in its row, or in a note under the table.
+After a schematic change, recompute every reading it touches: a plan that disagrees with the schematic is worse than
+none.

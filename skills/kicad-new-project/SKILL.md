@@ -10,10 +10,9 @@ description: "Create a new KiCad 10 project without opening KiCad, using the scr
 
 Get these from the user or the design notes:
 - **Board:** size and shape, and what fixes them (the enclosure, holes, edge connectors).
-- **Layers:** 2 by default. Use 4 for USB high-speed or faster links, for dense parts, or when sensitive analog needs a
-  solid plane.
-- **Thickness:** 1.6 mm unless something requires otherwise.
-- **Fab and assembly:** JLC unless told otherwise, and whether assembly is by hand or by JLC.
+- **Layers and thickness.**
+- **Fab and assembly:** which fab, and hand or machine assembly. The bundled rules, jobsets and fab checks are JLC's;
+  for another fab, set its minimums with `set_rules()` and pass its rule files to `check.py --rules-dir`.
 
 ## Steps
 
@@ -36,7 +35,8 @@ The project name is the shared stem of the `.kicad_pro`, `.kicad_sch` and `.kica
    "$KPY" -I <board-edit dir>/board.py rules <dir>/<name>.kicad_pro --power +5V,+3V3,GND --power-width 0.5
    ```
 
-   This sets minimums at or above JLC's limits, a 0.2/0.25 mm Default class, and a Power class. For other classes,
+   This sets minimums at or above JLC's limits, a 0.2/0.25 mm Default class, and a Power class (all arguments of
+   `set_rules()`). For other classes,
    call `set_rules(pro, classes={...})`. See `kicad-routing` for widths, and for `.kicad_dru` rules (DRC doesn't
    enforce class widths by itself).
 
@@ -73,7 +73,6 @@ tables first. To make the parts themselves, see `kicad-library`.
 
 - **Holes:** 2.7 mm for M2.5 and 3.2 mm for M3. Use a `_Pad` variant on GND if the chassis should be grounded
   (`b.add_footprint("H1", "MountingHole:MountingHole_3.2mm_M3_Pad", x, y)`).
-- **Fixed parts:** place and lock edge connectors and enclosure-dictated parts first (`kicad-placement`).
 - **Odd shapes:** for anything other than a rounded rectangle, draw segments and arcs on Edge.Cuts. The outline must
   close exactly, or DRC reports `invalid_outline`.
 
@@ -82,11 +81,7 @@ tables first. To make the parts themselves, see `kicad-library`.
 - **`.gitignore`:** `*.kicad_prl`, `~*.lck`, `.history/`, `*-backups/`, `fp-info-cache`.
 - **Jobsets:** copy in `jlc-fab.kicad_jobset`, plus `jlc-assembly.kicad_jobset` if JLC assembles the board. Set the zip
   name.
-- **`DESIGN.md`:** record:
-  - the board's purpose;
-  - its supplies, and what each connector can see;
-  - the layers, stackup and fab;
-  - placement and routing decisions, with their reasons;
-  - decisions the user has accepted.
+- **`DESIGN.md`:** the board's purpose, supplies, what each connector can see, layers, stackup and fab, and the
+  decisions the user accepted, with reasons. Other skills read it.
 - **Test plan:** start one with `kicad-bringup` once the schematic settles.
 - **CLAUDE.md or AGENTS.md:** if the project has one, note the skills it uses and the `KPY` path.

@@ -20,7 +20,7 @@ check, ending in PASS or FAIL:
    - **Recommended pass:** a warning. JLC builds it, but it may print poorly or yield worse.
 
 Options:
-- `--no-jlc`: run just ERC and DRC.
+- `--no-jlc`: run just ERC and DRC (for another fab, or pass its rule files with `--rules-dir`).
 - `--json out.json`: keep the full reports.
 
 Library-table warnings (`lib_footprint_issues`) are dropped from the JLC passes: the copy can't reach the project's

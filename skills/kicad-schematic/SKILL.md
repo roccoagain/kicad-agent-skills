@@ -52,30 +52,22 @@ rotating.
 
 - **Editor closed.** If the sheet is open in KiCad (`~<name>.kicad_sch.lck`), its next save overwrites your edit.
   `Schematic()` refuses to open it, so ask the user to close it.
-- **Clean git tree.** Only one session should edit a sheet at a time: `.kicad_sch` files merge badly.
-- **Pin lists.** For the parts you'll touch, save `view.py pins` (`kicad-view`) to compare afterwards.
-- **Choose MCU pins and header order from the floor plan** (`kicad-placement`) before wiring them.
+- **Clean git tree,** and one session per sheet: `.kicad_sch` files merge badly.
+- **Pin lists:** save `view.py pins` (`kicad-view`) for the parts you'll touch, to diff afterwards.
 
-## Drawing it readably
+## Drawing
 
-People read schematics, so a correct netlist drawn as a tangle still hides mistakes. Fix every lint problem, then
-look at each area you change (`view.py sch ... --around U2,C3`) for what lint can't judge: flow, spacing, grouping.
+Follow the sheet's existing conventions: symbols, block layout, label style, power-symbol direction, value units.
+On a new sheet, KiCad's defaults. Lint must be clean; then look at the area you changed (`view.py sch --around
+U2,C3`).
 
-- **Blocks:** one `box()` per subcircuit (power, an IC with its passives, a connector), with signals flowing left to
-  right.
-- **Sheets:** prefer one sheet you can read at once, even at A3. Use sub-sheets for repeated blocks.
-- **Passives:** use the small symbols (`R_Small`, `C_Small`, `L_Small`, `LED_Small`). Wire decoupling caps, pull-ups
-  and filters straight to their pins, and use labels for long runs between blocks. Note that `R_Small`/`C_Small`
-  pin 1 is the **top** pin at rotation 0.
-- **Power symbols:** a group of decoupling caps shares one supply symbol and one ground symbol. Ground points down and
-  supplies point up. Put one `PWR_FLAG` where each supply enters (`s.power_at(x, y, "PWR_FLAG")` on its wire). A
-  rail fed only by a connector or a regulator output needs one, or ERC reports "input power pin not driven".
-- **Units:** values carry them (`100nF`, `10k`), in the project's existing style.
-- **Text:** keep it at 1.27 mm, and never overlapping anything. Name differential pairs with `+`/`-` or `P`/`N`.
-- **Reference designs:** compare each block with its datasheet's reference circuit. Report every departure, and every
-  open choice you made, with its reason.
-- **Field positions** come from the library symbol. If a field crowds something, pass `ref_at=` or `value_at=` to
-  `add()`.
+Facts that trip the drawing up:
+- `R_Small`/`C_Small` pin 1 is the **top** pin at rotation 0.
+- A rail fed only by a connector or a regulator output needs one `PWR_FLAG` on its wire
+  (`s.power_at(x, y, "PWR_FLAG")`), or ERC reports "input power pin not driven".
+- Field positions come from the library symbol; pass `ref_at=` or `value_at=` to `add()` to move them.
+- KiCad's pair router finds differential pairs by a `+`/`-` or `P`/`N` name ending.
+- Compare each block with its datasheet's reference circuit, and report every departure and open choice you made.
 
 ## Limits of sch.py
 
@@ -94,8 +86,7 @@ look at each area you change (`view.py sch ... --around U2,C3`) for what lint ca
 1. **ERC and lint** print on every save: no new errors or problems (`kicad-check` for the full run).
 2. **Netlist:** check every touched pin is on the intended net and nothing else changed (`view.py pins`, diff with
    before).
-3. **Look** at the area (`view.py sch --around`).
-4. **Update the board:** run `board.py sync` (`kicad-board-edit`). It adds parts, copies values and fields, and moves
+3. **Update the board:** run `board.py sync` (`kicad-board-edit`). It adds parts, copies values and fields, and moves
    unrouted pads to new nets. A footprint change, or a routed pad on a changed net, needs re-routing.
-5. **Update the documents:** design notes, the test plan (`kicad-bringup`) if a reading changed, and the BOM/order if a
+4. **Update the documents:** design notes, the test plan (`kicad-bringup`) if a reading changed, and the BOM/order if a
    part number changed.

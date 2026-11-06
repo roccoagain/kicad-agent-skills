@@ -5,8 +5,8 @@ description: "Create or fix KiCad 10 symbols and footprints for parts that aren'
 
 # Symbols and footprints
 
-`K` is `kicad-cli` (see `kicad-view`). Footprint mistakes are the most common reason a first board fails: a mirrored
-pinout, the wrong pitch, or pin 1 in the wrong corner. Check every footprint against the datasheet by the numbers.
+`K` is `kicad-cli` (see `kicad-view`). Footprint mistakes (a mirrored pinout, the wrong pitch, pin 1 in the wrong
+corner) are the most common reason a first board fails, so check every footprint against the datasheet by the numbers.
 
 ## Where things live
 
@@ -19,11 +19,6 @@ pinout, the wrong pitch, or pin 1 in the wrong corner. Check every footprint aga
   - Never edit the stock libraries. Copy the part into the project library instead.
 
 ## Footprints
-
-Choose in this order:
-1. A stock footprint that matches the datasheet's land pattern.
-2. The closest stock footprint, edited.
-3. A footprint written by hand, for connectors, modules and other odd parts.
 
 Take pad sizes from the datasheet's **recommended land pattern**, not from the package drawing.
 
@@ -111,10 +106,7 @@ A footprint file looks like this: `(footprint "Name" (version 20260206) (generat
   - `no_connect` for NC pins.
 
   Types that are too loose hide real errors, and types that are too strict raise false ones.
-- **Layout:**
-  - inputs on the left and outputs on the right;
-  - supplies at the top and ground at the bottom;
-  - NC pins hidden, on the body outline.
+- **Layout:** follow the project library's existing symbols, else KiCad's library conventions (KLC).
 - **Repeated pins:** make one pin numbered `"[2,5,8,11]"` or `"[1-4]"`, which is a KiCad 10 native stack. Don't stack
   hidden pins on top of each other; KiCad flags that as a legacy stack.
 - **Alternate functions:** give the pin its main name, then add the others as `(alternate "USART1_TX" bidirectional line)`
@@ -148,31 +140,8 @@ A footprint file looks like this: `(footprint "Name" (version 20260206) (generat
    - pad size;
    - pin-1 position;
    - exposed pad.
-4. **Pins against pads.** This script expands native stacks before comparing:
-
-   ```python
-   # <scratch>/pinpad.py   run: python3 <scratch>/pinpad.py <lib>.kicad_sym <Symbol> <lib>.pretty/<Footprint>.kicad_mod
-   import re, sys
-   sym_lib, name, fp = sys.argv[1:4]
-   text = open(sym_lib).read()
-   start = re.search(r'\n\t\(symbol "%s"\n' % re.escape(name), text).start() + 1
-   end = text.find("\n\t)\n", start)
-   numbers = re.findall(r'\(number "([^"]*)"', text[start:end])
-   pins = set()
-   for n in numbers:                                   # native stacks: "[2,5,8]" or "[1-4]"
-       m = re.fullmatch(r"\[(.*)\]", n)
-       for part in (m.group(1).split(",") if m else [n]):
-           part = part.strip(); a = part.split("-")
-           if m and len(a) == 2:
-               pre = re.match(r"\D*", a[0]).group(0)
-               pins.update(pre + str(i) for i in range(int(a[0][len(pre):]), int(a[1][len(pre):]) + 1))
-           else:
-               pins.add(part)
-   pads = set(re.findall(r'\(pad "([^"]*)"', open(fp).read())) - {""}
-   print("pins without a pad:", sorted(pins - pads))
-   print("pads without a pin:", sorted(pads - pins))
-   ```
-
+4. **Pins against pads:** `python3 <this skill>/pinpad.py <lib>.kicad_sym <Symbol> <lib>.pretty/<Footprint>.kicad_mod`
+   lists pins without a pad and pads without a pin (native stacks expanded).
    - Both lists must be empty, unless a pad is deliberately unconnected. If so, say which.
    - Then check each pin's function against the pinout for this exact package. Other packages of the same part often
      number their pins differently.

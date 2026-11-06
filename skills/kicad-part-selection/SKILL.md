@@ -15,37 +15,15 @@ Stock, prices and lifecycle change monthly. Look them up, never answer from memo
 
 ## 1. Requirements
 
-Take the worst cases from `kicad-design-review`, then write down the following.
+Take the worst cases from `kicad-design-review` and choose ratings with margin. Easy to miss:
+- **Ceramic capacitors** lose capacitance under DC bias: check the maker's curve, or rate them at about twice the
+  working voltage.
+- **ICs:** every absolute maximum the circuit can reach, not only the supply.
+- **Ordering variants:** a value field may hold only part of the number ("TLV9061"). Read the ordering table, list
+  the variants that fit (package, temperature, options), and let the user pick when it isn't obvious.
 
-**Electrical ratings, with margin:**
-- Resistors: power at no more than half the rating.
-- Ceramic capacitors: rated at about twice the DC voltage they see, or confirmed on the maker's DC-bias curve.
-- ICs: supply range, input and output ranges, and every absolute maximum the circuit can reach.
-- Tolerance, tempco and dielectric where they matter.
-
-**Package:**
-- Hand soldering: 0805 or 1206 passives, and SOIC, SOT or TSSOP ICs. Avoid QFN, BGA and 0402.
-- JLC Economic assembly: 0402 and up, and IC pitch of 0.4 mm and up.
-- Use one size per part type where the design allows.
-
-**Build:** JLC assembly (LCSC stock) or hand assembly (DigiKey, Mouser). The project notes or existing BOM fields
-usually say which. If neither settles the package size, ask.
-
-**By part type:**
-- **Resistors:** thick film is fine for most uses. Use thin film in low-noise or precision paths (audio inputs,
-  references, sense dividers, precision feedback).
-- **Ceramic capacitors:** use C0G/NP0 or film in audio, signal and RF-matching paths. X7R/X5R capacitance changes with
-  voltage, and they are microphonic. Check the dielectric's temperature range.
-- **Inductors:** get these figures from the user, or from the regulator datasheet's calculation:
-  - inductance;
-  - rated current;
-  - saturation current, above the peak with margin;
-  - DCR;
-  - shielded or not. Use shielded near anything sensitive.
-
-  Prefer a part that has a stock KiCad footprint. For RF, use high-Q RF parts.
-- **ICs:** the value field may hold only part of the number ("TLV9061"). Read the ordering table, list the variants that
-  fit (package, temperature, options), and let the user pick when it isn't obvious.
+**Package and build:** follow the project's existing package sizes and suppliers (its notes or BOM fields). If they
+don't settle hand or machine assembly, ask. JLC Economic assembly takes 0402 and up, and IC pitch 0.4 mm and up.
 
 ## 2. Search
 
@@ -73,17 +51,14 @@ suffixes of one part can have different pinouts.
 
 - **Match by dimensions.** Find the package code in the ordering table (TI's `DBV` is SOT-23-5, `DCK` is SC-70-5).
   Match it to a KiCad footprint by pitch, body size and pads, not by name.
-- **Check the pinout.** Compare that package's pinout with the symbol's pin numbers (`kicad-library` step 4). Generic
+- **Check the pinout.** Compare that package's pinout with the symbol's pin numbers (`kicad-library`'s `pinpad.py`). Generic
   symbols often assume a different pinout.
 - **No stock footprint fits:** make one with `kicad-library`.
 
 ## 4. Record it
 
-Set these fields on the symbol (`kicad-schematic`):
-- `Value`, `Footprint`, and `Datasheet` (a stable PDF URL);
-- `MPN` and `Manufacturer`;
-- `LCSC`, `DigiKey` or `Mouser`, depending on the build;
-- for passives, the ratings that matter: `Voltage`, `Dielectric`, `Tolerance` and `Power`.
+Set the project's existing field set on the symbol (`kicad-schematic`). Without one: `Value`, `Footprint`,
+`Datasheet` (a stable PDF URL), `MPN`, `Manufacturer`, and the supplier's number (`LCSC`, `DigiKey`, `Mouser`).
 
 The schematic is the BOM's source, so regenerate order files from it (`kicad-assembly-export`). Then carry the fields
 to the board with `board.py sync` (`kicad-board-edit`).

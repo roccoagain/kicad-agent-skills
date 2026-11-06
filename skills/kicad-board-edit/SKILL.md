@@ -63,12 +63,11 @@ at 270°, above.
 - **Editor closed.** The editor's next save overwrites the file, so ask the user to save and close the board first.
 - **Schematic first.** Anything the schematic owns changes there first, then `board.py sync`: parts, footprints,
   values, fields and pin swaps. Nets come only from the schematic; `board.py` can't invent one.
-- **Clean git tree** before each edit, so it's one diff. Never commit edit scripts: replaying one later undoes newer
-  work.
-- **Rerunnable scripts.** Keep one placement script and one routing script per layout job, each starting with
-  the removals that undo its own output: `remove_outline()`, `remove_texts()` and holes for placement;
-  `remove_tracks(nets=["*"])` and `remove_zones()` for routing. Then each fix is an edit to the script and a rerun
-  of placement, then routing.
+- **Clean git tree** before each edit, so it's one diff.
+- **Scripts live in `<scratch>`.** A one-off edit script replayed later undoes newer work, so it's never committed.
+  For a layout job, keep one placement script and one routing script, each starting with the removals that undo its
+  own output (`remove_outline()`, `remove_texts()` and holes; `remove_tracks(nets=["*"])` and `remove_zones()`).
+  Each fix is then an edit to the script and a rerun. Commit these only if the user wants them kept.
 - **Footprint changes:** after changing a part's footprint in the schematic, `remove_footprint()` the old part in
   one process, then `board.py sync` adds the new one with its nets.
 - **Plan from numbers.** Take positions from `pads`, not from a picture. Keep tracks at 0°/45°/90°, leaving one

@@ -54,47 +54,19 @@ Run this after the DRC gate and the Gerbers:
 "$K" jobset run --stop-on-error -f jlc-assembly.kicad_jobset board.kicad_pro
 ```
 
-Then convert KiCad's position file (`Ref,Val,Package,PosX,PosY,Rot,Side`) into JLC's CPL. The script also applies
-rotation corrections from `jlc-rotations.csv` in the project. That file has the columns `Match,Offset`. `Match` is a
-designator or a `Package` value. A designator row wins over a package row.
+Then convert KiCad's position file into JLC's CPL, applying rotation corrections from `jlc-rotations.csv` in the
+project (columns `Match,Offset`; `Match` is a designator or a `Package` value, and a designator row wins):
 
-```python
-# <scratch>/cpl.py   run: python3 <scratch>/cpl.py fab/assembly/<p>_cpl-all-pos.csv fab/assembly/<p>_cpl.csv jlc-rotations.csv
-import csv, os, sys
-raw, out, corr = sys.argv[1], sys.argv[2], (sys.argv[3] if len(sys.argv) > 3 else "")
-offsets = {}
-if corr and os.path.exists(corr):
-    offsets = {r["Match"]: float(r["Offset"]) for r in csv.DictReader(open(corr, newline=""))}
-with open(raw, newline="") as f, open(out, "w", newline="") as g:
-    w = csv.writer(g)
-    w.writerow(["Designator", "Val", "Package", "Mid X", "Mid Y", "Rotation", "Layer"])
-    for r in csv.DictReader(f):
-        off = offsets.get(r["Ref"], offsets.get(r["Package"], 0.0))
-        rot = (float(r["Rot"]) + off) % 360
-        w.writerow([r["Ref"], r["Val"], r["Package"], r["PosX"], r["PosY"], f"{rot:g}", r["Side"]])
-os.remove(raw)
+```bash
+python3 <skill dir>/jlc_asm.py cpl fab/assembly/<p>_cpl-all-pos.csv fab/assembly/<p>_cpl.csv jlc-rotations.csv
 ```
 
 The y values come out negative. That's expected, and they match the Gerbers.
 
 ## Check before ordering
 
-1. **BOM against CPL:**
-
-   ```python
-   # <scratch>/asmcheck.py   run: python3 <scratch>/asmcheck.py fab/assembly/<p>_bom.csv fab/assembly/<p>_cpl.csv
-   import csv, re, sys
-   bom = list(csv.DictReader(open(sys.argv[1], newline="")))
-   cpl = list(csv.DictReader(open(sys.argv[2], newline="")))
-   in_bom = {d.strip(): r for r in bom for d in r["Designator"].split(",")}
-   in_cpl = {r["Designator"]: r for r in cpl}
-   print("in the BOM, not placed:", sorted(set(in_bom) - set(in_cpl)))
-   print("placed, not in the BOM:", sorted(set(in_cpl) - set(in_bom)))
-   print("placed, no LCSC number:", sorted(d for d in in_cpl if d in in_bom and not in_bom[d]["JLCPCB Part #"].strip()))
-   print("odd LCSC numbers:", sorted({r["JLCPCB Part #"] for r in bom if r["JLCPCB Part #"].strip() and not re.fullmatch(r"C\d+", r["JLCPCB Part #"].strip())}))
-   print("sides:", sorted({r["Layer"] for r in cpl}))
-   print("BOM rows over 200 designators:", [r["Comment"] for r in bom if len(r["Designator"].split(",")) > 200])
-   ```
+1. **BOM against CPL:** `python3 <skill dir>/jlc_asm.py check fab/assembly/<p>_bom.csv fab/assembly/<p>_cpl.csv`
+   lists parts in one file only, placed parts without an LCSC number, malformed numbers, and the sides used.
 
    - **No LCSC number:** JLC won't fit the part. Say whether the user will supply it or hand-solder it later.
    - **Both sides listed:** the order needs Standard assembly.
