@@ -5,120 +5,112 @@ description: Plan where parts go on a KiCad 10 PCB before moving any - fixed par
 
 # Where parts go
 
-Routing can only connect what placement has put within reach. A decoupling cap two centimetres from its pin, or a
-connector on the wrong edge, stays that way however the tracks are drawn. So decide placement from the circuit's
-needs, in a fixed order, and write down why.
+Routing can't fix a part in the wrong place. Placement controls:
+- **loop area:** fast current through a big loop radiates, picks up noise and rings;
+- **length on sensitive nodes:** high-impedance and clock nodes need short tracks;
+- **heat;**
+- **mechanical fit;**
+- **manufacturability.**
 
-## What placement controls
+If a rule below conflicts with one of these on a particular board, follow the effect and note why.
 
-1. **Loop area and inductance.** Every current returns to its source. The loop it makes (out on a track, back through
-   ground) radiates, picks up interference and has inductance in proportion to its size. Fast edges through a big
-   loop show up as ringing and supply droop. Shrinking the loops that carry fast current is the main job of placement.
-2. **Track length on sensitive nodes.** A long track on a high-impedance node is an antenna, and on a clock or RF line
-   it is a delay or a mismatch. Low-impedance outputs tolerate length; high-impedance inputs don't.
-3. **Heat.** Regulators, power resistors and LEDs dissipate heat into copper. Spread them, and keep temperature-
-   sensitive parts (references, crystals, electrolytic caps) away from them.
-4. **Mechanics.** Connectors, switches, indicators and mounting holes are where the enclosure and the user need them.
-5. **Manufacturing.** Reachable pads, clear courtyards, parts inside the pick-and-place margin, a board that can be
-   probed and reworked.
+## Order
 
-When a rule below conflicts with one of these on a particular board, follow the effect and say so in the notes.
+1. **Mechanical parts.** Place the outline, holes, connectors, switches, LEDs and anything else the enclosure fixes.
+   Lock them.
+2. **Blocks.** From the netlist (`kicad-view`), name each block and give it a region. Put blocks that share many nets
+   next to each other. Keep noisy blocks away from sensitive ones.
+3. **Large ICs.** Try all four rotations, and pick the one that points the pins toward what they connect to. Take pin
+   positions from the board's pads, not from the symbol.
+4. **Short-connection parts,** while the space around the pins is still free:
+   1. the switching regulator's power loop;
+   2. crystals and their load caps;
+   3. decoupling caps;
+   4. filters, terminations and ESD parts;
+   5. bulk caps and pull-ups.
+5. **The rest.** Leave lanes for routing.
 
-## Order of work
+Compute positions from pad coordinates. Placing by eye is often 0.3 mm off, which is half an 0201.
 
-1. **Fix the mechanical parts.** Outline, mounting holes, connectors, jacks, switches, LEDs, displays, anything the
-   enclosure dictates. Place them, then lock them so later steps can't push them.
-2. **Sketch the blocks.** Read the schematic (`kicad-view` and the netlist). Name the blocks (power input, regulator,
-   MCU, analog front end, RF, drivers) and give each a region. Put blocks that share many nets next to each other and
-   keep each block's noisy parts away from the sensitive ones in other blocks.
-3. **Orient the large ICs.** For each, try all four rotations and keep the one that points its pins toward what they
-   connect to: connectors, other ICs, the board edge. Take pin positions from the pads in the board file; the schematic
-   symbol's pin order says nothing about the package.
-4. **Place the short-connection parts**, in this order, while the space around the pins is still free:
-   1. a switching regulator's power loop;
-   2. crystals and their load capacitors;
-   3. decoupling capacitors, at the supply pins they serve;
-   4. input filters, series terminations, ESD and protection parts at the pin or connector they protect;
-   5. bulk capacitors, pull-ups and other parts that can sit anywhere on their net.
-5. **Place the rest** around the blocks, passives next to the pins they serve, and leave lanes for routing.
-6. **Check** (see the end), fix, and record the decisions.
+## By part type
 
-Place by computed coordinates (pad positions plus the offsets you want), not by eye: a placement judged by eye is
-often 0.3 mm off, and that is half an 0201.
+- **Decoupling cap:**
+  - Place it at its supply pin, supply pad toward the pin, with a ground via touching its ground pad.
+  - Give one cap to each supply pin if there are enough caps. Otherwise follow the vendor's grouping.
+  - Put the smallest value closest unless the vendor says otherwise. Bulk caps go behind it, on the same track.
+- **Switching regulator:**
+  - Make the datasheet's critical loop as small as possible. For a buck, that is input cap → high-side switch →
+    low-side switch → input cap. For a boost, it is output cap → switch → diode.
+  - Keep the switch node compact.
+  - Put the feedback and compensation parts on the quiet side, away from the inductor.
+- **Crystal:** place the load caps beside it and the crystal beside its pins, with equal path lengths. Route nothing
+  between them or underneath.
+- **High-impedance nodes** (op-amp inputs, references, feedback): a few mm long, no vias, away from noise. Put filters
+  and dividers at the pin they serve. Long runs go on low-impedance outputs.
+- **Protection and termination:**
+  - ESD and TVS parts go at the connector, first on the net.
+  - Series termination goes at the driver.
+  - A ferrite between two domains goes between their caps.
+- **RF:**
+  - Place the series parts in schematic order, in a line from the pin to the port.
+  - Shunt parts branch off at the nodes, with their grounds facing away from the line.
+  - Follow the vendor's layout exactly.
+- **Noisy versus quiet:**
+  - Noisy: switch nodes, clocks, buses, drivers, external power.
+  - Quiet: analog inputs, references, audio, RF.
 
-## Rules by part type
+  Keep their copper apart. Return currents must not pass under the quiet parts.
+- **Heat:** spread out the dissipating parts, and keep references and crystals away from them. Leave room for the
+  via field under an exposed pad.
 
-**Decoupling capacitors.** The loop that matters runs from the cap's pads through the IC's supply pin, its die and
-its ground pin. Put the cap against the supply pin it serves, with its supply pad toward the pin and a ground via
-touching its ground pad. If a part has several supply pins and enough caps, give each pin one. With fewer caps than
-pins, follow the vendor's layout drawing. Where the vendor orders the values (small cap closest) follow that; without
-guidance, put the smallest value nearest the pin. A bulk cap goes behind the small one, on the same supply track.
+Use only the parts in the schematic. If the vendor's reference design has a part the schematic lacks, report it.
+Treat the datasheet's layout constraints as requirements. When the datasheet leaves a choice open, make it and say
+that it's your inference.
 
-**Switching regulators.** Find the loop the datasheet marks as critical. For a buck it is the input capacitor, the
-high-side switch, the low-side switch (or diode) and back to the input capacitor. For a boost it is the output
-capacitor, the switch and the diode. Make that loop as small as the package allows, keep the switch node compact (it
-is a large, fast, noisy copper area, so no bigger than the current needs), and keep feedback dividers and the
-compensation network on the quiet side of the IC, away from the inductor.
+## Fine-pitch pin rows
 
-**Crystals and resonators.** Both load capacitors beside the crystal, the crystal beside the two oscillator pins, the
-two paths close to equal in length, and nothing routed between the crystal and the chip. Keep noisy tracks out from
-under the crystal.
+Two passives centred on neighbouring pins fit only if the sum of their courtyard widths is no more than twice the
+pitch. KiCad's stock courtyard widths are:
 
-**Analog and reference nodes.** Keep high-impedance nodes (an op-amp input, a reference pin, a feedback node) a few
-millimetres long, without vias, and not near switch nodes, clocks or buses. Put a filter or divider at the pin it
-serves, not at the source. Let low-impedance outputs run the long distance.
+| Size | Courtyard width |
+|---|---|
+| 0201 | 0.70 mm |
+| 0402 | 0.92 mm |
+| 0603 | 1.46 mm |
 
-**Protection and termination.** ESD diodes and TVS parts go at the connector, before anything else on that net.
-Series termination goes at the driving pin. A ferrite bead or link between two supply domains sits between the caps
-of the two domains.
+So two 0402s fit at 1.27 mm pitch, but not at 0.65 or 0.5 mm. When they don't fit:
+- stagger one part outward;
+- put one on the other side of the pin row;
+- move the part that can tolerate distance.
 
-**RF.** Place matching and filter parts in schematic order along a straight line from the chip to its connector or
-antenna, with shunt parts branching off at the nodes between series parts and their grounds on the side away from the
-line. Follow the vendor's reference layout exactly, including the ground-via pattern, if one exists.
+Every pad needs room for a track to escape. A fine-pitch row needs clear space in front until its tracks fan out. When
+a cap and an escaping track compete, the cap stays and the track goes around.
 
-**Noisy and quiet circuits.** Noisy: switch nodes, clocks, digital buses, motor and LED drivers, wiring from external
-power. Quiet: analog inputs, references, audio, RF front ends. Keep their copper apart, and place connectors so that
-return current has a short way home that doesn't pass under the quiet part.
+## Manufacturing
 
-**Heat.** Leave copper around regulators and power resistors, spread out the biggest dissipators, and keep references
-and crystals clear of them. A part with an exposed pad needs its via field, so keep that area free.
+- **Courtyards:** no overlaps.
+- **JLC assembly:** keep parts 2.5 mm from the edge, or add rails (`kicad-assembly-export`).
+- **Board sides:** use one side. Ask before placing parts on the bottom.
+- **Polarity:** orient polarised parts and pin-1 marks consistently.
+- **Test points and headers:** keep them reachable, with nothing tall beside them.
+- **Hand soldering:**
+  - leave at least 1 mm between pads of different blocks;
+  - use 0805 or larger where possible;
+  - use thermal reliefs on pads in pours.
+- **Reference designators:** keep them visible after assembly, not under tall parts.
 
-## Check the pad space around fine-pitch parts
+## Doing it
 
-Two passives at neighbouring pins, each centred on its own pin, fit only if their courtyards, measured along the pin
-row, don't overlap: courtyard widths added, no more than twice the pitch. With KiCad's stock courtyards (0.70 mm
-across for 0201, 0.92 mm for 0402, 1.46 mm for 0603), two 0402s need a pitch of 0.92 mm or more. They fit on a 1.27 mm
-SOIC, not on 0.65 mm TSSOP or 0.5 mm QFN pins. When they don't fit:
-- stagger one of them further from the package;
-- put one on the opposite side of the pin row, or the other side of the board if the design is two-sided;
-- let the part that tolerates distance move, and keep the one that doesn't.
+1. **Constraints.** Read each IC's layout section in its datasheet. Treat its constraints as requirements.
+2. **Move parts** with `kicad-board-edit`. Set each part's final position and rotation in one update. If you rotated any
+   part, run `sch_to_board.py` afterwards, because the 3D models drop.
+3. **Check each block.** Run DRC (`kicad-check`), look at the result (`kicad-view`), and confirm that every
+   close-coupled part is within about two body lengths of its pin.
+4. **Conflicts.** Before you move a critical part away from its pin, try at least two alternatives:
+   - another rotation;
+   - swapping two parts;
+   - moving a neighbour that can tolerate distance.
 
-Always leave a route out. Every pad needs room for a track to leave it, and a fine-pitch row needs clear space in
-front of it until its tracks can fan out or change layer. If a decoupling cap and an escaping track compete for a spot,
-the cap stays and the track goes around.
-
-## Manufacturing and testing
-
-- No courtyard overlaps (DRC reports them).
-- Keep parts at least 2.5 mm from the board edge for JLC assembly, or plan rails (`kicad-assembly-export`).
-- Prefer one side. Ask before putting parts on the bottom unless the user has already chosen a two-sided board.
-- Orient polarised parts and pin-1 marks consistently, so a human can check them quickly.
-- Keep test points and programming headers reachable by a probe or cable, with nothing tall beside them.
-- For hand soldering, leave at least 1 mm between pads of different blocks for the iron, use 0805 or larger where the
-  design allows, and use thermal reliefs on pads that connect to pours.
-- Put reference designators where silk can show them after assembly, and out from under tall parts.
-
-## Doing it with the other skills
-
-1. Read the schematic and each IC's datasheet layout section. Treat anything it states as a requirement (ground tied
-   to one pin, keep-out, maximum length), and anything it only suggests as advice.
-2. Move parts with `kicad-board-edit`: give each part its final position and rotation in one update. If you rotated a
-   part, run its `sch_to_board.py` afterwards, because KiCad 10.0's API drops the 3D model of a rotated part.
-3. After each block: DRC (`kicad-check`) for courtyards and clearances, and look at the board (`kicad-view`). Measure
-   that each part that must be close is within about two body lengths of its pin.
-4. Before moving a critical part away from its pin to solve a conflict, try at least two alternatives: another
-   rotation, swapping two parts, or moving whichever neighbour can tolerate more distance. Report anything you could
-   not satisfy, and why.
-5. Put the decisions in the project's design notes: where each block sits and what drove it. The next change then
-   starts from the reasons, not from the picture.
-6. Routing comes next: `kicad-routing`.
+   Report anything left unsatisfied.
+5. **Design notes.** Record where each block sits and why.
+6. **Next step:** route with `kicad-routing`.

@@ -5,35 +5,34 @@ description: Look at a KiCad 10 schematic or PCB using only KiCad's own tools - 
 
 # Look at a KiCad design
 
-Everything here is `kicad-cli`, which ships with KiCad. Write every output to a temporary folder outside the
-project (`<scratch>` below), never into the project.
+Write all output to a scratch folder (`<scratch>`), never into the project.
 
-`kicad-cli` is not on PATH on macOS. Below, `K` stands for it:
-- macOS: `K=/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli`
-- Linux: `K=kicad-cli`
-- Windows: `K="C:\Program Files\KiCad\10.0\bin\kicad-cli.exe"`
+`K` stands for the path to `kicad-cli`:
 
-`"$K" version` must print 10.x. These skills rely on KiCad 10 behaviour, so stop and tell the user if it's older.
-On macOS with Homebrew's fontconfig, every `kicad-cli` run prints dozens of `Fontconfig warning` lines on stderr:
-they're harmless, so send stderr to `/dev/null` or filter them out.
+| OS | Path |
+|---|---|
+| macOS | `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli` (not on PATH) |
+| Linux | `kicad-cli` |
+| Windows | `C:\Program Files\KiCad\10.0\bin\kicad-cli.exe` |
+
+`"$K" version` must print 10.x. If it doesn't, stop and tell the user. On macOS with Homebrew's fontconfig, every run
+prints harmless `Fontconfig warning` lines; send them to `/dev/null`.
 
 ## Schematic
 
 ```bash
 "$K" sch export pdf -o <scratch>/sch.pdf board.kicad_sch
+pdftoppm -png -r 100 <scratch>/sch.pdf <scratch>/sch     # sch-1.png, sch-2.png, … (poppler)
 ```
 
-One page per sheet on a hierarchical design. If your agent can only view images, convert the pages:
-`pdftoppm -png -r 100 <scratch>/sch.pdf <scratch>/sch` writes `sch-1.png`, `sch-2.png`... (poppler; `brew install
-poppler` or `apt install poppler-utils`). macOS's `sips -s format png` converts only the first page. A whole A3
-sheet at 100 dpi is legible for blocks, labels, references and most values. Fine print (pin numbers, small values)
-is borderline: raise `-r`, or better, confirm it in the netlist.
+- **Pages:** you get one page per sheet.
+- **Resolution:** 100 dpi is enough for blocks and labels. Raise `-r` for pin numbers, or read them from the netlist.
+- **Single pages:** `sips` converts only the first page.
 
-## Which net is a pin on (connections, by the netlist, not by eye)
+## Which net a pin is on
 
-Export KiCad's own netlist, the one the board is updated from. Use the default s-expression format: it keeps
-KiCad's real net names. The `kicadxml` format unescapes them, so a label `A/B` reads `/A/B` there, like a sheet
-path, while the board calls it `/A{slash}B`.
+Use the default netlist format. It keeps KiCad's real net names; `kicadxml` unescapes them, so `A{slash}B` there reads
+like a sheet path.
 
 ```bash
 "$K" sch export netlist -o <scratch>/net.net board.kicad_sch
@@ -41,74 +40,65 @@ awk '/^\t\t\(net$/{n=""} /^\t\t\t\(name "/{if(n==""){n=$0; sub(/.*\(name "/,"",n
   /^\t\t\t\t\(ref "/{r=$0; sub(/.*\(ref "/,"",r); sub(/"\)$/,"",r)}
   /^\t\t\t\t\(pin "/{p=$0; sub(/.*\(pin "/,"",p); sub(/"\)$/,"",p); print r"."p"\t"n}' \
   <scratch>/net.net | sort -V > <scratch>/pins.tsv
-grep '^U2\.' <scratch>/pins.tsv         # every pin of U2 and its net
-awk -F'\t' '$2=="/VREF"' <scratch>/pins.tsv   # every pin on /VREF
+grep '^U2\.' <scratch>/pins.tsv                  # U2's pins and nets
+awk -F'\t' '$2=="/VREF"' <scratch>/pins.tsv      # everything on /VREF
 ```
 
-The awk relies on the layout `kicad-cli` writes: one item per line, tab-indented, nets at two tabs. If it
-prints nothing, look at the file's layout first.
+- **Empty output:** the awk depends on kicad-cli's tab indentation. If it prints nothing, check the file's layout.
+- **Broken connections:** a wire that only looks connected shows up as a separate net.
+- **Net names to recognise:**
+  - unnamed nets look like `Net-(C2-Pad2)`;
+  - unconnected pins look like `unconnected-(U1-NC-Pad5)`;
+  - `/` in a net name is escaped as `{slash}`.
 
-A wire that looks connected but isn't (a missing junction, a label one character off, an end a grid step away)
-shows up as a separate net. Unnamed nets read like `Net-(C2-Pad2)`, and unconnected pins as
-`unconnected-(U1-NC-Pad5)`. Names escape `/` as `{slash}`, and a few other characters the same way.
-
-## Board, whole
+## Board
 
 ```bash
-"$K" pcb export pdf -o <scratch>/top.pdf --mode-single --scale 0 \
-  -l F.Cu,F.SilkS,F.Mask,Edge.Cuts board.kicad_pcb
-"$K" pcb export pdf -o <scratch>/bottom.pdf --mode-single --scale 0 --mirror \
-  -l B.Cu,B.SilkS,B.Mask,Edge.Cuts board.kicad_pcb
+"$K" pcb export pdf -o <scratch>/top.pdf --mode-single --scale 0 -l F.Cu,F.SilkS,F.Mask,Edge.Cuts board.kicad_pcb
+"$K" pcb export pdf -o <scratch>/bottom.pdf --mode-single --scale 0 --mirror -l B.Cu,B.SilkS,B.Mask,Edge.Cuts board.kicad_pcb
 ```
 
-- `--scale 0` fits the board to the page.
-- Layer names are KiCad's canonical ones (`F.SilkS`, `B.Fab`, `F.CrtYd`, `In1.Cu`...). The API and the editor
-  show the long names (`F.Silkscreen`), but `kicad-cli` wants the canonical ones.
-- Add `F.Fab` and `F.CrtYd` for part outlines and courtyards when judging placement.
-- In `--mode-single`, layers are drawn in a fixed order, and a bottom pour covers top tracks. Put one copper layer
-  in each PDF, or use `--mode-multipage` for one page per layer.
-- The board's own colours come from the PCB editor's theme. `--black-and-white` or `--theme` change them.
+- **Layer names:** kicad-cli wants the canonical names (`F.SilkS`, `F.CrtYd`, `In1.Cu`), not the editor's long ones.
+- **Placement:** add `F.Fab` and `F.CrtYd` to see part outlines and courtyards.
+- **Single-page mode:** layers draw in a fixed order, so a bottom pour hides top tracks. Plot one copper layer per PDF,
+  or use `--mode-multipage`.
 
-## Board, close up
+For a close-up 3D render (no net names):
 
 ```bash
 "$K" pcb render -o <scratch>/view.png --side top --quality basic --width 1600 --height 1200 \
   --zoom 4 --pan "X,Y,0" board.kicad_pcb
 ```
 
-A 3D render: real pads, silkscreen and parts, but no net names or ratsnest.
-- `--zoom` multiplies the fit-to-board view.
-- `--pan` shifts the camera and is fiddly to aim: render, look, adjust.
-- `--side bottom`, `--perspective` and `--rotate` give other views.
-- For an exact number (a pad's position, a gap), read the `.kicad_pcb` text instead. Each footprint has
-  `(at x y rot)` and each pad `(at dx dy)` relative to it. That beats any picture.
+- **Aiming:** `--pan` takes trial and error, so render, look and adjust.
+- **Other views:** `--side bottom`, `--perspective` and `--rotate`.
+- **Exact numbers:** read them from the `.kicad_pcb`. Footprints have `(at x y rot)`, and pads have `(at dx dy)`
+  relative to their footprint.
 
 ## Compare two revisions
 
-To see what a commit changed (before committing, or when reviewing someone's change), extract both revisions
-whole, so library tables and sub-sheets come along, then compare pictures and pin lists:
-
 ```bash
 mkdir -p <scratch>/old <scratch>/new
-git archive <old-rev> | tar -x -C <scratch>/old        # or HEAD; for uncommitted work use the working tree as "new"
+git archive <old-rev> | tar -x -C <scratch>/old     # for uncommitted work, use the working tree as "new"
 git archive <new-rev> | tar -x -C <scratch>/new
-for v in old new; do
-  "$K" sch export netlist -o <scratch>/$v.net <scratch>/$v/<path>/board.kicad_sch
-  # same awk as above -> <scratch>/$v.tsv
-done
+# export each netlist, run the awk above into old.tsv / new.tsv, then:
 diff <scratch>/old.tsv <scratch>/new.tsv
 ```
 
-- Each changed line is a pin whose net changed, appeared or disappeared.
-- Auto-named nets (`Net-(C10-Pad2)`) are named after one of their pins, so they rename when that part changes even
-  if the connection didn't. Read a renamed unnamed net as "check", not as "changed".
-- For the picture, plot the same sheet or layers from both trees and look at them side by side.
-- For values and fields, diff the BOMs: `"$K" sch export bom --fields 'Reference,Value,Footprint,${DNP}'`.
+- **Changed lines:** each one is a pin whose net changed.
+- **Auto-named nets:** these rename when their namesake part changes, even if the connection didn't. Treat a renamed
+  auto-named net as something to check, not as a change.
+- **Values and fields:** diff the BOMs from `"$K" sch export bom --fields 'Reference,Value,Footprint,${DNP}'`.
+- **Pictures:** plot the same sheet or layers from both trees and compare them side by side.
 
-## Reading the pictures
+## Reading results
 
-- Board coordinates are mm with y growing downwards, the numbers KiCad's editor, DRC and the `.kicad_pcb` use.
-  (Position files and Gerbers flip y, so their y values are negative.)
-- A picture is for spotting problems. Measure from the file, and confirm connections with the netlist or DRC.
-- To check a design, use the `kicad-check` skill. To change one, use `kicad-schematic` or `kicad-board-edit`. To
-  look at a single footprint or symbol, use `kicad-library`.
+- **Coordinates:** board coordinates are in mm, with y increasing downward. Position files and Gerbers flip the sign
+  of y.
+- **What pictures are for:** use pictures to spot problems. Take measurements from the file, and confirm connections
+  with the netlist or DRC.
+- **Related skills:**
+  - checking a design: `kicad-check`;
+  - changing a schematic: `kicad-schematic`;
+  - changing a board: `kicad-board-edit`;
+  - one footprint or symbol: `kicad-library`.
