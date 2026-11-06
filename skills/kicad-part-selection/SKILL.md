@@ -86,7 +86,7 @@ Set these fields on the symbol (`kicad-schematic`):
 - for passives, the ratings that matter: `Voltage`, `Dielectric`, `Tolerance` and `Power`.
 
 The schematic is the BOM's source, so regenerate order files from it (`kicad-assembly-export`). Then carry the fields
-to the board with `sch_to_board.py`.
+to the board with `board.py sync` (`kicad-board-edit`).
 
 ## Report
 

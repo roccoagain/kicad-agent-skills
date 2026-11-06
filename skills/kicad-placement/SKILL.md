@@ -37,7 +37,7 @@ connector or programming header whose pin order is free, choose pins from where 
 - that a header's order follows the order its signals arrive in.
 
 For example, I2C split between opposite sides of a TSSOP, or an SWD header ordered against its pins, forces vias
-or long detours. Changing a pin after placement means a schematic edit, a `sch_to_board.py` run, and pad-net fixes.
+or long detours. Changing a pin after placement means a schematic edit and a `board.py sync` run (plus re-routing if it was routed).
 
 Compute positions from pad coordinates. Placing by eye is often 0.3 mm off, which is half an 0201.
 
@@ -111,8 +111,9 @@ a cap and an escaping track compete, the cap stays and the track goes around.
 ## Doing it
 
 1. **Constraints.** Read each IC's layout section in its datasheet. Treat its constraints as requirements.
-2. **Move parts** with `kicad-board-edit`. Set each part's final position and rotation in one update. If you rotated any
-   part, run `sch_to_board.py` afterwards, because the 3D models drop.
+2. **Move parts** with `board.py` (`kicad-board-edit`): one placement script holding every part's `place(ref, x, y,
+   rot)`, rerun whenever placement changes. End it with `auto_labels()` and save. Print the pads (`board.py pads`)
+   to plan the next block.
 3. **Check each block.** Run DRC (`kicad-check`), look at the result (`kicad-view`), and confirm that every
    close-coupled part is within about two body lengths of its pin.
 4. **Conflicts.** Before you move a critical part away from its pin, try at least two alternatives:

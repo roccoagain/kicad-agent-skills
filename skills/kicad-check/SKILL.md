@@ -5,58 +5,28 @@ description: "Run ERC and DRC (with schematic parity) on a KiCad 10 design, then
 
 # Check a KiCad design
 
-`K` is `kicad-cli`. See `kicad-view` for its path. These checks don't modify the project. The JLC passes run on a copy
-in `<scratch>`.
-
-## 1. ERC
-
 ```bash
-"$K" sch erc --severity-error --severity-warning --format json -o <scratch>/erc.json board.kicad_sch
+python3 <skill dir>/check.py board.kicad_pro          # this SKILL.md's folder
 ```
 
-## 2. DRC with the project's rules and schematic parity
-
-```bash
-"$K" pcb drc --refill-zones --schematic-parity --severity-all --format json -o <scratch>/drc.json board.kicad_pcb
-```
-
-This covers the same ground as KiCad's DRC dialog:
-- the project's rules;
-- unrouted nets;
-- whether the board matches the schematic.
+It runs everything below with KiCad's own checkers, changes nothing in the project, and prints a few lines per
+check, ending in PASS or FAIL:
+1. **ERC** on the schematic.
+2. **DRC** with the project's rules, unrouted nets and schematic parity: the same ground as KiCad's DRC dialog.
+3. **DRC against JLCPCB's rules**, on a copy, with the rule files in this folder (2-layer or multilayer, picked from
+   the board). It reports only findings the project's DRC didn't:
+   - **Limits pass:** an error. JLC can't make the board as drawn.
+   - **Recommended pass:** a warning. JLC builds it, but it may print poorly or yield worse.
 
 Options:
-- `--format report` gives readable text.
-- `--severity-error --exit-code-violations` turns the run into a pass/fail gate. Exit code 5 means errors.
-- `--refill-zones` changes the file only if you add `--save-board`.
+- `--no-jlc`: run just ERC and DRC.
+- `--json out.json`: keep the full reports.
 
-## 3. DRC with JLCPCB's rules
+Library-table warnings (`lib_footprint_issues`) are dropped from the JLC passes: the copy can't reach the project's
+libraries. The rule files assume JLC's standard FR-4 process with 1 oz outer copper. For 2 oz, edit the values
+marked `[2oz]` in copies of both files (same names) in another folder, and pass `--rules-dir <that folder>`.
 
-The rule files in this skill's folder are for JLC's standard FR-4 process with 1 oz outer copper. Choose them by
-copper layer count:
-
-| Board | Limits (errors) | Recommended (warnings) |
-|---|---|---|
-| 1–2 layers | `jlcpcb-2layer-limits.kicad_dru` | `jlcpcb-2layer-recommended.kicad_dru` |
-| 4+ layers | `jlcpcb-multilayer-limits.kicad_dru` | `jlcpcb-multilayer-recommended.kicad_dru` |
-
-Run each file on its own copy of the board. The rule file must have the same stem as the board:
-
-```bash
-W=$(mktemp -d <scratch>/jlc.XXXX)
-cp board.kicad_pcb board.kicad_pro "$W/"
-cp <skill dir>/jlcpcb-2layer-limits.kicad_dru "$W/board.kicad_dru"
-"$K" pcb drc --refill-zones --severity-all --format json -o "$W/drc.json" "$W/board.kicad_pcb"
-```
-
-**Reading the results**
-- **Limits pass:** anything step 2 didn't report means JLC can't make the board as drawn. Treat it as an error,
-  whatever severity DRC prints.
-- **Recommended pass:** anything new is a warning. JLC will still build it.
-- **Library warnings:** ignore `lib_footprint_issues`. The copy can't reach the project's library tables.
-- **2 oz outer copper:** edit the values marked `[2oz]` in a copy of the rule file.
-
-**Editing a rule file**
+## Rule files
 - **Comments on their own line.** KiCad 10.0.5 silently skips every rule after a `#` comment that shares a line with
   code.
 - **Prove the whole file loads.** Append this rule to a copy:
@@ -71,7 +41,7 @@ cp <skill dir>/jlcpcb-2layer-limits.kicad_dru "$W/board.kicad_dru"
 
 JLC's numbers come from jlcpcb.com/capabilities/pcb-capabilities, read on 2026-11-05. Re-check them before an order.
 
-## 4. What DRC can't check
+## What DRC can't check
 
 Read these from the `.kicad_pcb` and report them. The values are for JLC's standard FR-4 process.
 

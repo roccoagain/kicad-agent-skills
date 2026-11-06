@@ -24,7 +24,7 @@ From JLC's help center, read on 2026-11-05:
 
 ## Part numbers
 
-Each part JLC places needs an `LCSC` field (`C` + digits). Add it with `kicad-schematic`, then run `sch_to_board.py`.
+Each part JLC places needs an `LCSC` field (`C` + digits). Add it with `kicad-schematic`, then run `board.py sync` (`kicad-board-edit`).
 If the project already uses another field name, change `fields_ordered` in the jobset instead. To choose parts, use
 `kicad-part-selection`.
 

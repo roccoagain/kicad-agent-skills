@@ -176,7 +176,7 @@ A footprint file looks like this: `(footprint "Name" (version 20260206) (generat
    - Both lists must be empty, unless a pad is deliberately unconnected. If so, say which.
    - Then check each pin's function against the pinout for this exact package. Other packages of the same part often
      number their pins differently.
-5. **On the board.** After `sch_to_board.py`, DRC reports any courtyard overlaps, clearance problems, and
+5. **On the board.** After `board.py sync` (`kicad-board-edit`), DRC reports any courtyard overlaps, clearance problems, and
    `lib_footprint_mismatch`.
 
 ## Changing a part that's already in use
@@ -184,4 +184,4 @@ A footprint file looks like this: `(footprint "Name" (version 20260206) (generat
 - **Schematics:** each schematic keeps its own copy of the symbol. `lib_symbol_mismatch` catches moved pins, but not
   renamed ones. Re-copy the symbol into every schematic that uses it (`kicad-schematic`), then check the netlist.
 - **Boards:** each board keeps its own copy of the footprint, so DRC reports `lib_footprint_mismatch`. To update it,
-  delete the part, re-add it with `sch_to_board.py`, and re-route its pads.
+  delete the part, re-add it with `board.py sync`, and re-route its pads.

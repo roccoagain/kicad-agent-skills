@@ -4,22 +4,24 @@ Agent Skills for designing PCBs in KiCad 10 with a coding agent: from a new proj
 placement, routing, checks (including JLCPCB's limits), review and simulation, to fab and assembly files and a
 bring-up plan. The agent drives KiCad, so you don't have to open it.
 
-They use KiCad's own interfaces (`kicad-cli`, jobsets, the IPC API via `kicad-python`, and bundled `pcbnew`) and work
-with any agent that reads the open [Agent Skills](https://agentskills.io) format, such as Claude Code and OpenAI Codex.
+Edits go through small Python scripts bundled with the skills (`sch.py`, `board.py`, `view.py`, `check.py`): the
+agent calls a few verbs by part and pin, and the scripts handle the file formats, pin geometry and KiCad's traps,
+then run ERC or DRC on every save. Checks and exports use KiCad's own `kicad-cli` and jobsets. They work with any
+agent that reads the open [Agent Skills](https://agentskills.io) format, such as Claude Code and OpenAI Codex.
 
 ## Skills
 
 | Skill | What it does |
 |---|---|
 | `kicad-new-project` | Create the project, schematic and board files, rules, outline, jobsets |
-| `kicad-schematic` | Edit the schematic as text; verify with netlist and ERC |
+| `kicad-schematic` | Draw and edit the schematic with `sch.py`; ERC on every save |
 | `kicad-library` | Make and check symbols and footprints |
 | `kicad-part-selection` | Choose orderable parts, JLC Basic/Extended, BOM fields |
-| `kicad-view` | Plot and render the design, trace nets, compare revisions |
+| `kicad-view` | Cropped plots, pin nets and revision diffs with `view.py` |
 | `kicad-placement` | Decide where parts go and why |
 | `kicad-routing` | Route the board: net classes, widths, pours, return paths |
-| `kicad-board-edit` | Move parts and edit tracks, vias and pours through the IPC API |
-| `kicad-check` | ERC, DRC, and DRC against JLCPCB's limits |
+| `kicad-board-edit` | Board, sync from schematic, placement, tracks, vias, pours with `board.py` |
+| `kicad-check` | ERC, DRC and JLCPCB's limits in one run with `check.py` |
 | `kicad-design-review` | Review the circuit by hand against datasheets |
 | `kicad-simulate` | Simulate a stage with ngspice |
 | `kicad-fab-export` | Gerber and drill zip, STEP and DXF |
@@ -29,8 +31,8 @@ with any agent that reads the open [Agent Skills](https://agentskills.io) format
 ## Requirements
 
 - KiCad 10 (tested with 10.0.5 on macOS).
-- For board editing, routing and placement: KiCad's API enabled (Preferences → Plugins → Enable KiCad API) and
-  [uv](https://docs.astral.sh/uv/).
+- Python 3 for `sch.py`, `view.py` and `check.py`; KiCad's bundled Python for `board.py`.
+- `pdftoppm` (poppler) for pictures.
 - For simulation: `ngspice`.
 
 ## Install

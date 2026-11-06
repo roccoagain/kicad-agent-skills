@@ -1,157 +1,99 @@
 ---
 name: kicad-schematic
-description: "Edit a KiCad 10 schematic as text and keep it readable: change values and fields, add symbols, wires, labels, power symbols and sheets, then verify with the netlist and ERC and carry the change to the board. Use for any schematic change, such as adding a part, connecting nets or changing a value, and when drawing a new schematic. To create a symbol, use kicad-library."
+description: "Edit or draw a KiCad 10 schematic with sch.py, a small Python library in this skill's folder: add symbols, wires, labels, power symbols and no-connects by pin, change values and fields, then check with ERC and carry the change to the board. Use for any schematic change, such as adding a part, connecting nets or changing a value, and when drawing a new schematic. To create a symbol, use kicad-library."
 ---
 
 # Change a schematic
 
-KiCad 10.0's API can't edit schematics, so edit the `.kicad_sch` file as text. Check the result with KiCad's netlist
-and ERC, not by looking at a picture.
+Make every change with `sch.py` (this skill's folder) from a short script in `<scratch>`. It needs only `python3`.
+It handles the parts that go wrong by hand:
+- copying and flattening library symbols;
+- pin positions under rotation and mirroring;
+- instances, references, UUIDs and string escaping;
+- junctions;
+- running ERC after every save.
+
+It inserts new items and leaves the rest of the file byte for byte, so the diff shows only the change.
+
+```python
+import sys; sys.path.insert(0, "<skill dir>")              # this SKILL.md's folder
+from sch import Schematic
+
+s = Schematic("board.kicad_sch")                           # refuses if KiCad has the sheet open
+s.add("Device:C_Small", "C?", (120.65, 50.8), value="100nF",            # "C?" = next free C; 1.27 mm grid
+      footprint="Capacitor_SMD:C_0603_1608Metric", fields={"LCSC": "C14663", "Voltage": "50V"})
+s.add("MCU_ST_STM32G0:STM32G030F6Px", "U2", (170.18, 82.55), footprint="Package_SO:TSSOP-20_4.4x6.5mm_P0.65mm")
+s.power("C1", "1", "+3V3"); s.power("C1", "2", "GND")     # on the pin, pointing away from the part
+s.power("U2", "4", "+3V3", stub=2.54)                      # after a 2.54 mm wire
+s.label("U2", "9", "UART_TX")                              # stub + label, text reading away from the part
+s.connect(("U2", "4"), ("C1", "1"))                        # wire with at most one bend (first="v" to go vertical first)
+s.wire(("D1", "2"), (150, 124.46), ("R3", "1"))            # explicit corners; legs horizontal or vertical
+s.nc("U2", "7")
+s.set_field("R3", "Value", "1k")                           # existing or new symbol; new fields are hidden
+s.remove("J2")                                             # a part plus its stubs, labels and no-connects
+s.add("Connector:Conn_ARM_SWD_TagConnect_TC2030-NL", "J2", (196.85, 121.92),
+      in_bom=False, in_pos=False)                          # footprint-only part: no BOM line, not placed
+s.box(125, 25, 215, 140, "MCU")                            # dashed block outline with a bold title
+s.text("Place C1 at U2 pin 4", 135, 50)                    # notes; "\n" for line breaks
+s.save()                                                   # writes, adds junctions, prints ERC
+```
+
+To plan a placement:
+- `python3 sch.py symbol Lib:Name` lists a library symbol's pins: number, name, type and offset.
+- `python3 sch.py pins board.kicad_sch U2` lists where a placed symbol's pins land, and which way each points.
+- `s.pin(ref, n)` returns `(x, y, out_dx, out_dy)` inside a script.
+
+Coordinates are sheet mm, with y pointing down. Rotation is counter-clockwise, and `mirror="x"|"y"` is applied after
+rotating.
 
 ## Before
 
-- **Editor closed.** If `~<name>.kicad_sch.lck` exists, the sheet is open in KiCad, and its next save will overwrite
-  your edit. Ask the user to close it.
-- **Clean git tree.** Start from a clean tree, and let only one session edit a sheet at a time, because `.kicad_sch`
-  files merge badly.
-- **Pin list.** Save the pin list (`kicad-view`) for every part you'll touch, so you can compare it afterwards.
-- **Scripts.** Keep edit scripts in `<scratch>` and never commit them.
+- **Editor closed.** If the sheet is open in KiCad (`~<name>.kicad_sch.lck`), its next save overwrites your edit.
+  `Schematic()` refuses to open it, so ask the user to close it.
+- **Clean git tree.** Only one session should edit a sheet at a time: `.kicad_sch` files merge badly.
+- **Pin lists.** For the parts you'll touch, save `view.py pins` (`kicad-view`) to compare afterwards.
+- **Choose MCU pins and header order from the floor plan** (`kicad-placement`) before wiring them.
 
-## Fields and values
+## Drawing it readably
 
-A placed symbol is a top-level block, `(symbol (lib_id ...) (at ...) ... (property "Reference" "C2" ...) ...)`. Find it
-by its Reference, and edit only inside that block.
+People read schematics, so a correct netlist drawn as a tangle still hides mistakes. Look at every area you change
+(`view.py sch ... --around U2,C3`), fix what's wrong, and look again.
 
-- **New field:** add `(property "Name" "value" (at x y 0) (hide yes) (effects (font (size 1.27 1.27))))`.
-- **Field set:** keep it consistent across parts (MPN, Manufacturer, LCSC or distributor number, Datasheet).
-- **Flags:** `(dnp yes)`, `(in_bom no)` and `(in_pos_files no)` mark a part as DNP, excluded from the BOM, and excluded
-  from position files.
+- **Blocks:** one `box()` per subcircuit (power, an IC with its passives, a connector), with signals flowing left to
+  right.
+- **Sheets:** prefer one sheet you can read at once, even at A3. Use sub-sheets for repeated blocks.
+- **Passives:** use the small symbols (`R_Small`, `C_Small`, `L_Small`, `LED_Small`). Wire decoupling caps, pull-ups
+  and filters straight to their pins, and use labels for long runs between blocks. Note that `R_Small`/`C_Small`
+  pin 1 is the **top** pin at rotation 0.
+- **Power symbols:** a group of decoupling caps shares one supply symbol and one ground symbol. Ground points down and
+  supplies point up. Put one `PWR_FLAG` where each supply enters (`s.power_at(x, y, "PWR_FLAG")` on its wire). A
+  rail fed only by a connector or a regulator output needs one, or ERC reports "input power pin not driven".
+- **Units:** values carry them (`100nF`, `10k`), in the project's existing style.
+- **Text:** keep it at 1.27 mm, and never overlapping anything. Name differential pairs with `+`/`-` or `P`/`N`.
+- **Reference designs:** compare each block with its datasheet's reference circuit. Report every departure, and every
+  open choice you made, with its reason.
+- **Field positions** come from the library symbol. If a field crowds something, pass `ref_at=` or `value_at=` to
+  `add()`.
 
-## New symbols
+## Limits of sch.py
 
-A placed symbol needs four things.
-
-**1. A definition in `(lib_symbols ...)`, named `"Library:Name"`.**
-- Copy it from the `.kicad_sym` file. Stock symbols are in `/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols/`
-  on macOS and `/usr/share/kicad/symbols` on Linux. Project libraries are listed in `sym-lib-table`.
-- Rename only the top-level symbol. Unit sub-symbols keep the bare name, e.g. `"R_0_1"`.
-- Flatten symbols that `(extends "Parent")`. About 12,000 stock symbols do, and copied as-is they load with no pins.
-  To flatten:
-  1. Take the parent's block.
-  2. Replace its properties with the child's.
-  3. Name it `"Library:Child"`.
-  4. Rename the unit sub-symbols from `Parent_1_1` to `Child_1_1`.
-  5. Drop the `extends`.
-
-**2. The placed block.** It contains:
-- `(lib_id ...)`, `(at x y rot)`, an optional `(mirror x|y)`, and `(unit n)`;
-- `(exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)`;
-- a new `(uuid ...)`;
-- the Reference, Value, Footprint and Datasheet properties, plus the project's own fields;
-- one `(pin "n" (uuid ...))` for each pin of the unit. A KiCad 10 pin stack (`"[20,21]"`, `"[1-4]"`) gets one entry
-  with that bracketed number.
-
-**3. Its instance.** Add
-`(instances (project "<.kicad_pro stem>" (path "/<root sheet uuid>" (reference "R12") (unit 1))))`.
-- The root sheet's uuid is the one near the top of the root file.
-- On a sub-sheet, the path is `"/<root uuid>/<sheet block uuid>"`.
-
-**4. A unique reference.** `kicad-cli` can't annotate. Take the next free number from the netlist, or grep for
-`(reference "R`. Power and flag symbols also need unique references (`#PWR012`, `#FLG03`).
-
-Make every UUID new: `python3 -c 'import uuid; print(uuid.uuid4())'`.
-
-**Generating a whole sheet from a script** is fine for a new design, but once a board exists, don't regenerate: new
-symbol UUIDs break every board part's link to its symbol, and parity fails. Edit the file in place from then on, or
-make the generator's UUIDs stable (for example `uuid5` of the reference).
-
-### Pin position
-
-A library pin's `(at px py angle)` is its connection end, where wires attach. Library y points up. For a symbol at
-`(X, Y)` with rotation `r` (counter-clockwise on screen), the pin lands at `(X + dx, Y + dy)`:
-1. Flip y: `dx = px`, `dy = -py`.
-2. Rotate: `dx, dy = dx·cos r + dy·sin r, −dx·sin r + dy·cos r`. At 90° that gives `(dy, −dx)`; at 180°, `(−dx, −dy)`.
-3. Mirror after rotating: `(mirror y)` negates `dx`, and `(mirror x)` negates `dy`.
-
-Mirroring before rotating puts the pins in the wrong place.
-
-Check one case by hand: `Device:R_Small` and `C_Small` have pin 1 at library `(0, 2.54)`, so at 0° pin 1 is on
-**top** on screen (y = Y − 2.54). Wiring the supply to pin 2 draws the part upside down.
-
-## Wiring
-
-- **Connections:** wires connect end to end, or to a pin end. Stay on the 1.27 mm grid.
-- **Junctions:** a wire ending on the middle of another wire connects only through a junction at that point:
-  `(junction (at x y) (diameter 0) (color 0 0 0 0) (uuid ...))`. The editor adds junctions automatically, but text
-  edits don't.
-- **Labels:** `(label "NAME" ...)` connects by name within one sheet. It can sit on a wire end, the middle of a wire,
-  or directly on a pin end.
-- **Global connections:** `(global_label ...)` connects across sheets. Power symbols act as global labels, with their
-  pin at their origin.
-- **Unused pins:** put a `(no_connect (at x y) (uuid ...))` on the pin end.
-- **Multi-line text:** write a line break inside a string as the two characters `\n`. A raw newline makes
-  `kicad-cli` fail with only "Failed to load schematic", and no line number.
-- **PWR_FLAG:** if a rail is fed only by a connector or a regulator output, ERC reports "input power pin not driven".
-  Put one `power:PWR_FLAG` on that net instead of silencing ERC.
-
-## Hierarchical sheets
-
-- **Parent:** the parent places the sub-sheet with
-  `(sheet (at ...) (size ...) (uuid ...) (property "Sheetname" ...) (property "Sheetfile" "input.kicad_sch")
-  (pin "IN" input (at ...) (uuid ...)) (instances (project "<name>" (path "/<root uuid>" (page "2")))))`.
-- **Sheet pins:** each pin matches a `(hierarchical_label "IN" ...)` in the sub-sheet.
-- **Sub-sheet:** it has its own uuid and `lib_symbols`, and no `sheet_instances`.
-- **Net names:** local labels in a sub-sheet get the sheet's path in their net name (`/Input/IN`).
-- **ERC:** run it on the root file.
-
-## Readable
-
-**Look at it zoomed in.** Plot the sheet and rasterise only the area you changed. Schematic coordinates are mm from
-the top-left, with y pointing down.
-
-```bash
-DPI=200; mm() { python3 -c "print(round($1 / 25.4 * $DPI))"; }
-"$K" sch export pdf -o <scratch>/sch.pdf board.kicad_sch
-pdftoppm -png -r $DPI -singlefile -x $(mm 320) -y $(mm 30) -W $(mm 80) -H $(mm 60) <scratch>/sch.pdf <scratch>/zoom
-```
-
-Add `-f N -l N` to pick page N. Fix overlapping text, wires that cross or run long, labels turned the wrong way, and
-crowding. Repeat until the area is clean.
-
-**Layout**
-- Put each subcircuit in a dashed box with a bold title:
-  - `(rectangle (start x1 y1) (end x2 y2) (stroke (width 0.254) (type dash)) (fill (type none)) (uuid ...))`
-  - `(text "POWER INPUT" (exclude_from_sim no) (at x y 0) (effects (font (size 2 2) (thickness 0.4) (bold yes))
-    (justify left bottom)) (uuid ...))`
-- Let signals flow left to right.
-- Use one sheet if it stays legible, even at A3 or A2. Use sub-sheets for repeated blocks.
-
-**Symbols and wiring**
-- Use small passive symbols (`R_Small`, `C_Small`, `L_Small`) and wire them directly to their pins. Use labels for
-  long runs.
-- Let a group of decoupling caps share one supply symbol and one ground symbol.
-- Point ground symbols down and positive rails up. Place each `PWR_FLAG` where power enters, and each test point by its
-  net.
-- Give values units (`100nF`, `10k`), following the project's existing style.
-- Name differential pairs with a `+`/`-` or `P`/`N` suffix.
-- Keep text at 1.27 mm and never overlapping. Use colour only where it means something.
-
-**Redrawn and reference circuits**
-- **Redrawn symbols:** reordering an IC symbol's pins is allowed only in the project library's copy. Then prove that the
-  pin numbers, names and types are unchanged (`kicad-library` step 4), and that the netlist is unchanged.
-- **Reference designs:** compare each block with the datasheet's reference circuit. Report every departure, and every
-  open choice you made, with your reasons.
-
-If you can't place something confidently, describe it exactly (pins and nets from the netlist) and ask the user.
+- **Multi-sheet designs:** it edits one sheet file at a time and writes root-sheet instance paths. For symbols on a
+  sub-sheet, write the instance path `"/<root uuid>/<sheet uuid>"` yourself, or ask.
+- **Moving or replacing a part:** use `remove(ref)`, then `add()` it again with its connections. `remove()` takes
+  the stub wires, labels, power symbols and no-connects that hang off the part's pins. It stops at branches and at
+  other parts' pins, so shared nets survive.
+- **Not handled:** editing existing wires, labels and text. Make those as small text edits to the file, and
+  confirm with ERC and the netlist.
+- **Regenerating:** don't regenerate a whole sheet once a board exists. New symbol UUIDs break the board's links to
+  its symbols (parity fails). Edit in place instead.
 
 ## After
 
-1. **ERC** (`kicad-check`): no new errors.
-2. **Netlist diff** (`kicad-view`): every touched pin is on the intended net, and nothing else changed.
-3. **Look** at the changed area.
-4. **Update the board:** run `sch_to_board.py` (`kicad-board-edit`). Changes to pad nets or footprints need
-   re-routing. DRC with `--schematic-parity` must come back clean.
-5. **Update the documents:**
-   - the design notes, if the design or its reasons changed;
-   - the test plan, if a reading changed (`kicad-bringup`);
-   - the BOM or order, if a part number changed.
+1. **ERC** prints on every save: no new errors (`kicad-check` for the full run).
+2. **Netlist:** check every touched pin is on the intended net and nothing else changed (`view.py pins`, diff with
+   before).
+3. **Look** at the area (`view.py sch --around`).
+4. **Update the board:** run `board.py sync` (`kicad-board-edit`). It adds parts, copies values and fields, and moves
+   unrouted pads to new nets. A footprint change, or a routed pad on a changed net, needs re-routing.
+5. **Update the documents:** design notes, the test plan (`kicad-bringup`) if a reading changed, and the BOM/order if a
+   part number changed.

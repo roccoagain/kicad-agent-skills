@@ -5,9 +5,9 @@ description: "Plan and route a KiCad 10 board: net classes and rules, track widt
 
 # Route a board
 
-Routing comes after placement (`kicad-placement`). Make the edits through the API (`kicad-board-edit`): `Track`, `Via`
-and `Zone`. There is no command-line autorouter, so work out coordinates from the pad positions, route a few nets at
-a time, and run DRC after each batch.
+Routing comes after placement (`kicad-placement`). Make the edits with `board.py` (`kicad-board-edit`): `track`,
+`via`, `gnd_via` and `zone`. There is no command-line autorouter, so work out coordinates from the pad positions,
+and run DRC (printed on every save) until nothing is unconnected.
 
 ## 1. Rules: net classes and minimums
 
@@ -20,7 +20,8 @@ overwrites the file when it saves.
   Patterns match the board's net names exactly (`/VBUS`) and accept wildcards (`/USB_D*`).
 - **Minimums:** `board.design_settings.rules` (`min_clearance`, `min_track_width`, `min_via_diameter`, …). Set them at
   or above the fab's limits.
-- **Checking:** after reopening the board, call `get_netclass_for_nets(...)` to confirm the assignments.
+- **Setting them:** `board.py rules` (`kicad-board-edit`) writes JLC-level minimums, the Default class and a Power
+  class; `set_rules(pro, classes={...})` adds others.
 
 DRC enforces a class's clearance but not its track width. If width matters, add a rule to `<board>.kicad_dru`, with
 comments on their own lines:
@@ -128,15 +129,21 @@ Route the most sensitive nets first:
   download from GitHub, which a sandbox or auto-permission mode may block. Without it, plan the time. Hand-routing
   even a 15-net, 2-layer board through coordinates takes many DRC rounds.
 
-## 8. Through the API
+## 8. Doing it with board.py
 
-1. Get pad positions and nets with `get_pads()`. Plan each path as straight runs with 45° bends, keeping at least one
-   clearance plus half a track width from everything else.
-2. Create `Track` and `Via` items for a few nets per commit, then refill the zones and save.
-3. Run DRC (`kicad-check`). `unconnected_items` lists what is still unrouted. Repeat until DRC reports no errors and
-   nothing unconnected.
-4. Look at the result (`kicad-view`). A route can pass DRC and still cut a pour.
-5. Record in the design notes any constraint a later change must respect.
+1. **Plan on paper first.** `board.py pads` gives every pad's centre, size and net. For each net, write the path as
+   points with 45° or 90° bends. For each segment, check its distance to other nets' pads and tracks: at least the
+   clearance plus half of each width. Escape fine-pitch pins straight out, then turn. Tracks may run under an IC's
+   body between its pad rows.
+2. **One routing script**, run in a fresh process after placement: tracks by `b.pad(ref, n)`, explicit corner points,
+   vias where a net changes layer, `gnd_via` beside each ground pad, `zone("GND", ...)` last. `save()` prints DRC.
+   A "starved thermal" error on a pad boxed in by tracks: connect it with a track, or pour with `pads="solid"` on a
+   reflow-assembled board.
+3. **Iterate on the script, not the board:** start the routing script with `remove_tracks(nets=["*"]);
+   remove_zones()`, so a rerun replaces the whole route. When DRC complains, fix the script and rerun it. Moving a part a few
+   tenths of a mm often beats contorting a track; change the placement script and rerun both.
+4. **Look** at the result (`view.py pcb`, both sides). A route can pass DRC and still cut a pour into islands.
+5. **Record** in the design notes any constraint a later change must respect.
 
 ## Done when
 

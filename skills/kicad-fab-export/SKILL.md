@@ -81,7 +81,7 @@ project's own rules, so also run `kicad-check`'s JLC passes before ordering.
 ```
 
 **STEP**
-- A part whose footprint names no 3D model is missing from the STEP. `sch_to_board.py` (`kicad-board-edit`) restores
+- A part whose footprint names no 3D model is missing from the STEP. `board.py sync` (`kicad-board-edit`) restores
   models that the API dropped.
 - Useful options: `--board-only`, `--no-dnp`, `--drill-origin`, and `--user-origin 0x0mm`.
 
