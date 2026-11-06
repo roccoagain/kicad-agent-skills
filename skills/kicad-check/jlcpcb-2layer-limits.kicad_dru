@@ -1,0 +1,66 @@
+(version 1)
+# JLCPCB capability limits: 1- and 2-layer FR-4, 1 oz outer copper.
+# A board outside these can't be made as drawn: every violation in this pass is an error.
+# Source: https://jlcpcb.com/capabilities/pcb-capabilities (read 2026-11-05). Re-check before ordering.
+# For 2 oz outer copper change the values marked [2oz].
+# For a 4-layer or bigger board use jlcpcb-multilayer-limits.kicad_dru instead.
+#
+# For one constraint type the last matching rule wins, so the general rules come first and the
+# more specific ones after them.
+
+# [2oz] 0.16mm
+(rule "JLC copper clearance"
+	(constraint clearance (min 0.10mm)))
+
+# [2oz] 0.16mm
+(rule "JLC track width"
+	(condition "A.Type == 'Track'")
+	(constraint track_width (min 0.10mm)))
+
+# V-cut edges need 0.4mm
+(rule "JLC copper to board edge"
+	(constraint edge_clearance (min 0.2mm)))
+
+(rule "JLC hole size"
+	(condition "A.Type == 'Pad' || A.Type == 'Via'")
+	(constraint hole_size (min 0.15mm) (max 6.3mm)))
+
+(rule "JLC NPTH hole size"
+	(condition "A.Type == 'Pad' && A.Pad_Type == 'NPTH, mechanical'")
+	(constraint hole_size (min 0.5mm) (max 6.3mm)))
+
+(rule "JLC via diameter"
+	(condition "A.Type == 'Via'")
+	(constraint via_diameter (min 0.25mm)))
+
+(rule "JLC annular ring"
+	(constraint annular_width (min 0.05mm)))
+
+# [2oz] 0.254mm
+(rule "JLC PTH annular ring"
+	(condition "A.Type == 'Pad' && A.Pad_Type == 'Through-hole'")
+	(constraint annular_width (min 0.18mm)))
+
+(rule "JLC hole to copper"
+	(constraint hole_clearance (min 0.2mm)))
+
+(rule "JLC PTH hole to copper"
+	(condition "A.Type == 'Pad' && A.Pad_Type == 'Through-hole'")
+	(constraint hole_clearance (min 0.28mm)))
+
+(rule "JLC hole to hole"
+	(constraint hole_to_hole (min 0.2mm)))
+
+(rule "JLC pad hole to pad hole"
+	(condition "A.Type == 'Pad' && B.Type == 'Pad'")
+	(constraint hole_to_hole (min 0.45mm)))
+
+# [2oz] 0.16mm
+(rule "JLC pad to track"
+	(condition "(A.Type == 'Pad' && B.Type == 'Track') || (A.Type == 'Track' && B.Type == 'Pad')")
+	(constraint clearance (min 0.10mm)))
+
+# [2oz] 0.16mm
+(rule "JLC SMD pad to SMD pad"
+	(condition "A.Type == 'Pad' && B.Type == 'Pad' && A.Pad_Type == 'SMD' && B.Pad_Type == 'SMD'")
+	(constraint clearance (min 0.15mm)))

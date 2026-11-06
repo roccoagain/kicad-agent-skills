@@ -1,0 +1,14 @@
+(version 1)
+# JLCPCB assembly: every assembled part's body at least 2.5 mm from the board edge.
+# Source: JLC's assembly terms, https://jlcpcb.com/help/article/terms-and-conditions-of-jlcpcb-assembly-service
+# (read 2026-11-05). Edge rails added to the order (JLC adds them for Standard PCBA) lift this limit.
+#
+# This checks courtyards, which sit 0.1-0.5 mm outside a part's body, so a courtyard 2.25-2.5 mm from the edge
+# may still be fine: measure the body before moving the part.
+# Parts JLC doesn't place (mounting holes, fiducials, hand-soldered connectors) are excluded by reference with
+# memberOfFootprint() below. Add the project's own, one pattern per clause. Keep comments on their own lines:
+# KiCad ignores every rule after a comment that shares a line with code.
+
+(rule "JLC assembly: part to board edge"
+	(condition "(A.Layer == 'F.CrtYd' || A.Layer == 'B.CrtYd') && B.Layer == 'Edge.Cuts' && !A.memberOfFootprint('H*') && !A.memberOfFootprint('FID*') && !A.memberOfFootprint('MH*')")
+	(constraint physical_clearance (min 2.5mm)))

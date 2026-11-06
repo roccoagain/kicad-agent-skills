@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "version": 1
+  },
+  "jobs": [
+    {
+      "id": "6f1c2a10-0000-4000-8000-000000000001",
+      "type": "pcb_export_gerbers",
+      "description": "Gerbers for JLCPCB",
+      "settings": {
+        "output_filename": "",
+        "layers": ["F.Cu", "B.Cu", "F.Mask", "B.Mask", "F.SilkS", "B.SilkS", "Edge.Cuts"],
+        "layers_to_include_on_all_layers": [],
+        "use_x2_format": false,
+        "include_netlist_attributes": true,
+        "disable_aperture_macros": false,
+        "use_protel_file_extension": true,
+        "precision": 6,
+        "create_gerber_job_file": false,
+        "subtract_solder_mask_from_silk": true,
+        "plot_footprint_values": true,
+        "plot_ref_des": true,
+        "plot_drawing_sheet": false,
+        "plot_pad_numbers": false,
+        "sketch_pads_on_fab_layers": false,
+        "use_drill_origin": false,
+        "check_zones": true
+      }
+    },
+    {
+      "id": "6f1c2a10-0000-4000-8000-000000000002",
+      "type": "pcb_export_drill",
+      "description": "Drill files for JLCPCB",
+      "settings": {
+        "output_dir": "",
+        "format": "excellon",
+        "drill_origin": "abs",
+        "units": "mm",
+        "zero_format": "decimal",
+        "excellon.combine_pth_npth": false,
+        "excellon.oval_drill_route": false,
+        "excellon.mirror_y": false,
+        "excellon.minimal_header": false,
+        "generate_map": false,
+        "generate_report": false
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "id": "6f1c2a10-0000-4000-8000-0000000000aa",
+      "type": "archive",
+      "description": "JLC fab zip",
+      "only": [],
+      "settings": {
+        "output_path": "${KIPRJMOD}/fab/${PROJECTNAME}_gerber.zip",
+        "format": "zip"
+      }
+    }
+  ]
+}

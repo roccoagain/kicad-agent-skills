@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "version": 1
+  },
+  "jobs": [
+    {
+      "id": "6f1c2a10-0000-4000-8000-000000000101",
+      "type": "sch_export_bom",
+      "description": "BOM for JLCPCB assembly",
+      "settings": {
+        "output_filename": "${PROJECTNAME}_bom.csv",
+        "fields_ordered": ["Value", "Reference", "Footprint", "LCSC"],
+        "fields_labels": ["Comment", "Designator", "Footprint", "JLCPCB Part #"],
+        "fields_group_by": ["Value", "Footprint", "LCSC"],
+        "sort_field": "Reference",
+        "sort_asc": true,
+        "filter_string": "",
+        "group_symbols": true,
+        "exclude_dnp": true,
+        "field_delimiter": ",",
+        "string_delimiter": "\"",
+        "ref_delimiter": ",",
+        "ref_range_delimiter": "",
+        "keep_tabs": false,
+        "keep_line_breaks": false,
+        "bom_preset_name": "",
+        "bom_format_preset_name": ""
+      }
+    },
+    {
+      "id": "6f1c2a10-0000-4000-8000-000000000102",
+      "type": "pcb_export_pos",
+      "description": "Pick-and-place (CPL) for JLCPCB assembly",
+      "settings": {
+        "output_filename": "${PROJECTNAME}_cpl.csv",
+        "side": "both",
+        "units": "mm",
+        "format": "csv",
+        "use_drill_place_file_origin": false,
+        "smd_only": false,
+        "exclude_footprints_with_th": false,
+        "exclude_dnp": true,
+        "exclude_bom": false,
+        "negate_bottom_x": false,
+        "single_file": true,
+        "gerber_board_edge": false
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "id": "6f1c2a10-0000-4000-8000-0000000001aa",
+      "type": "folder",
+      "description": "JLC assembly files",
+      "only": [],
+      "settings": {
+        "output_path": "${KIPRJMOD}/fab/assembly"
+      }
+    }
+  ]
+}
