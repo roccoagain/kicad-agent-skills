@@ -1,6 +1,6 @@
 ---
 name: kicad-library
-description: Make and check KiCad 10 symbols and footprints for parts that aren't in KiCad's libraries - stock footprints, the datasheet's land pattern, or IPC-7351 pads computed with the script in this skill's folder; pin 1, courtyard, fab and silk layers, 3D models; symbols with native pin stacks and alternate pin functions; pad-to-pin agreement; project library tables - validated with kicad-cli (fp/sym upgrade as a parse check, SVG renders) and DRC. Use when a part needs a new or modified symbol or footprint, when a library footprint is suspected wrong, or when setting up a project's own libraries.
+description: "Create or fix KiCad 10 symbols and footprints for parts that aren't in KiCad's libraries: land patterns from the datasheet or IPC-7351, pin 1, courtyard and silk, 3D models, pin stacks, and symbol pins matched to footprint pads. Also sets up project library tables. Use when a part needs a new symbol or footprint, or a footprint might be wrong. To place an existing symbol, use kicad-schematic."
 ---
 
 # Symbols and footprints

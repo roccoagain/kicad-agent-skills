@@ -1,6 +1,6 @@
 ---
 name: kicad-fab-export
-description: Make the zip of Gerbers and drill files JLCPCB takes, with a KiCad jobset (KiCad's own saved export recipe, run by kicad-cli) after a DRC gate, then render the Gerber files themselves with pygerber to check them - plus STEP and DXF files for enclosure and mechanical work. Covers putting the jobset template from this skill's folder into a project, inner layers on 4+ layer boards, naming the zip, checking what came out, and re-exporting after board changes. Use when the user asks for Gerbers, a fab zip, files to order a board, or a STEP/DXF of the board, or after a board change in a project that keeps its fab zip. For JLC assembly files (BOM and CPL), use kicad-assembly-export.
+description: "Export Gerbers, drill files and the JLCPCB fab zip from a KiCad 10 board, after a DRC check, and verify the files. Also exports STEP and DXF files for enclosures. Use when the user asks for Gerbers, a fab zip, files to order a PCB, or a STEP/DXF, or after a board change in a project that keeps its fab zip. For the BOM and CPL files JLC assembly needs, use kicad-assembly-export."
 ---
 
 # Export a board for JLCPCB

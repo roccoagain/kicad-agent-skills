@@ -1,6 +1,6 @@
 ---
 name: kicad-view
-description: Look at a KiCad 10 schematic or PCB using only KiCad's own tools - kicad-cli plots it to PDF (or renders the board in 3D) and you look at the result; the netlist export answers "which net is this pin on"; two git revisions can be compared by picture and pin by pin. Use whenever you need to see a schematic or board, before and after any edit, when checking a connection, when reviewing what a commit changed, or when the user asks how part of a design looks.
+description: "See a KiCad 10 schematic or PCB: plot it to PDF or PNG, render the board in 3D, find which net each pin is on from the netlist, and compare two git revisions. Use whenever you need to look at a design, before and after any edit, to check a connection, to review what a commit changed, or when the user asks to see or screenshot a board or schematic."
 ---
 
 # Look at a KiCad design

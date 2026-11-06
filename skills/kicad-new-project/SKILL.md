@@ -1,6 +1,6 @@
 ---
 name: kicad-new-project
-description: Start a new KiCad 10 project or board without opening KiCad - create the project, schematic and board files, set the layer count, thickness, design rules and net classes for the fab, draw the board outline with rounded corners, place mounting holes and ground pours, set up project libraries, jobsets, .gitignore and design notes - then bring the schematic's parts onto the board for placement. Use when the user wants a new board, a new revision copied from an old one, or a board for a schematic that has no PCB yet.
+description: "Create a new KiCad 10 project without opening KiCad: project, schematic and board files, layer count, thickness, design rules and net classes, board outline, mounting holes, ground pours, libraries, jobsets and .gitignore. Use when the user wants a new board, a new revision of an existing one, or a PCB for a schematic that doesn't have one yet."
 ---
 
 # Start a new project

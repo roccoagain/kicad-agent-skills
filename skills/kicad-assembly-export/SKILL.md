@@ -1,6 +1,6 @@
 ---
 name: kicad-assembly-export
-description: Make the BOM and pick-and-place (CPL) files for JLCPCB's SMT assembly from a KiCad 10 project - a jobset template in this skill's folder writes both with JLC's column names, then the CPL header and per-package rotation corrections are applied - and check the order before it's placed - LCSC part numbers on every placed part, BOM and CPL designators agreeing, parts at least 2.5 mm from the board edge (a DRC rule file in this skill's folder), Economic vs Standard assembly limits, rotations in JLC's preview. Use when the user wants a board assembled by JLC, asks for a BOM or CPL/pick-and-place/centroid file, or adds LCSC numbers.
+description: "Make JLCPCB assembly files (BOM and CPL/pick-and-place) from a KiCad 10 board and check the order: LCSC numbers on every placed part, BOM and CPL agree, parts clear of the edge, rotations. Use when the user wants JLC to assemble a board, asks for a BOM, CPL, centroid or pick-and-place file, or adds LCSC numbers. For Gerbers, use kicad-fab-export."
 ---
 
 # Export a board for JLCPCB assembly

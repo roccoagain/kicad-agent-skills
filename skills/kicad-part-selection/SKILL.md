@@ -1,6 +1,6 @@
 ---
 name: kicad-part-selection
-description: Choose real parts for a KiCad design - electrical ratings with margin, a package that suits hand or JLC assembly, stock and lifecycle at the distributor, JLC Basic vs Extended parts and LCSC numbers, second sources - and confirm the footprint matches the exact orderable part number, then record MPN, manufacturer, datasheet and distributor numbers as schematic fields. Use when adding a part, replacing an out-of-stock or obsolete one, preparing a BOM for JLC assembly or a DigiKey/Mouser order, or when the user asks which part to use.
+description: "Choose real, orderable parts for a KiCad design: ratings with margin, a package suited to hand or JLC assembly, stock, lifecycle, JLC Basic vs Extended, and a footprint that matches the exact part number. Records MPN, LCSC and distributor numbers in the schematic. Use when adding or replacing a part (out of stock, obsolete), building a BOM, or when the user asks which part to use."
 ---
 
 # Choose parts

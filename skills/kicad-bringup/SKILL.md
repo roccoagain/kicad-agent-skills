@@ -1,6 +1,6 @@
 ---
 name: kicad-bringup
-description: Write or update a board's bring-up and test plan (TEST_PLAN.md) from its KiCad schematic - visual inspection, unpowered resistance checks with expected readings computed from the netlist, first power with a current-limited supply and parts left out, then block-by-block functional tests - each step with what a wrong reading means, plus a log to fill in per board. Use when a board is about to be ordered or assembled, when the user asks how to test or bring up a board, or after a schematic change that moves a reading.
+description: "Write or update a board's bring-up and test plan (TEST_PLAN.md) from its KiCad schematic: visual checks, unpowered resistance readings computed from the netlist, current-limited first power, block-by-block function tests, and a per-board log. Use when a board is about to be ordered or assembled, when the user asks how to test or bring up a board, or after a schematic change that moves a reading."
 ---
 
 # Write a bring-up plan

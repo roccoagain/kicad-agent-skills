@@ -1,6 +1,6 @@
 ---
 name: kicad-design-review
-description: Review a KiCad schematic's electrical design by hand against datasheets - what every connector can see (normal use, power states, misuse such as a wire on the wrong terminal), absolute maximum ratings, protection and injection current, resistor power, capacitor voltage and derating, dielectrics in signal paths, ESD on exposed pins, floating inputs, interfaces between boards, and whether the bring-up test plan catches likely assembly faults. Use after a schematic change, when adding a part, when the user asks whether an input can take a voltage or whether a design survives a fault, and before ordering a board.
+description: "Review a KiCad schematic's electrical design against datasheets: what each connector can see (power states, misuse, ESD), absolute maximum ratings, clamp current, resistor and capacitor ratings and derating, floating inputs, interfaces between boards. Use before ordering, after a schematic change, when adding a part, or when the user asks whether an input can take a voltage or whether the design survives a fault."
 ---
 
 # Review a circuit by hand

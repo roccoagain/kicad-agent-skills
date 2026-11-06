@@ -1,6 +1,6 @@
 ---
 name: kicad-placement
-description: Plan where parts go on a KiCad 10 PCB before moving any - fixed parts first, then the parts whose connections must be short (decoupling, switching loops, crystals), then the rest - with the physics behind each rule, a pad-clearance check for parts that share a pin row, and a checklist for assembly and hand soldering. Use when planning or reviewing placement or a re-layout, and together with kicad-board-edit when moving parts.
+description: "Decide where parts go on a KiCad 10 PCB: mechanical parts first, then the parts whose connections must be short (decoupling, regulator loops, crystals), with spacing checks for fine-pitch pins and rules for assembly and hand soldering. Use when planning, reviewing or redoing a layout's placement. Moves are made with kicad-board-edit."
 ---
 
 # Where parts go

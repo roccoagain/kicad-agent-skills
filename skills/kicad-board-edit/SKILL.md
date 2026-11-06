@@ -1,6 +1,6 @@
 ---
 name: kicad-board-edit
-description: Change a KiCad 10 PCB without the user touching KiCad - move, rotate or flip parts, add or remove tracks, vias, pours and keep-outs, change pad nets, refill zones - through KiCad's official IPC API with the kicad-python library, from a throwaway script kept outside the project; and bring the board in line with the schematic (new parts, values, fields, footprints) with the sch_to_board.py template in this skill's folder. Covers launching the PCB editor yourself, finding its API socket, the API's traps in KiCad 10.0 (duplicated footprints, lost 3D models, zero-size thermals), and checking the result. Use whenever the user asks for placement, routing or part changes on a .kicad_pcb, or after a schematic change that the board must follow.
+description: "Make changes to a KiCad 10 PCB through KiCad's IPC API: move, rotate or flip parts, add or delete tracks, vias, pours and keep-outs, change pad nets, refill zones. Also updates the board from the schematic (new parts, values, footprints). Use for any edit to a .kicad_pcb, or after a schematic change. For deciding where parts go or how to route, see kicad-placement and kicad-routing."
 ---
 
 # Edit a board through the API

@@ -1,6 +1,6 @@
 ---
 name: kicad-simulate
-description: Simulate part of a KiCad 10 schematic with ngspice from the command line - export the SPICE netlist with kicad-cli, replace parts that have no model with sources and vendor models, run operating point, AC (gain, -3 dB frequency, phase) and transient (peaks, clipping, start-up) analyses in batch, and read the numbers back. Covers SPICE's unit traps (M is milli), mapping a vendor .subckt's pin order, and when a hand calculation is enough. Use when a design decision depends on a frequency response, a transient, headroom or a power figure that is hard to work out by hand, or to back up a kicad-design-review finding.
+description: "Simulate part of a KiCad 10 schematic with ngspice from the command line: frequency response, -3 dB points, gain, clipping, transients, start-up and fault currents, using vendor models or ideal stand-ins. Use when a design decision depends on a frequency response, transient, headroom or power figure that is hard to work out by hand, or to back up a kicad-design-review finding."
 ---
 
 # Simulate a circuit

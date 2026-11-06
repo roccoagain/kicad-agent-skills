@@ -1,6 +1,6 @@
 ---
 name: kicad-routing
-description: Decide how to route a KiCad 10 board and do it through the IPC API - net classes and design rules in the project file, track width for current (IPC-2221 table), voltage clearance, vias, ground pours and return paths on 2- and 4-layer boards, routing order, decoupling, crystals, switching regulators, differential pairs and impedance at JLC - then check with DRC until nothing is unrouted. Use when routing or re-routing a board, choosing track widths or net classes, adding pours, or reviewing a layout's routing.
+description: "Plan and route a KiCad 10 board: net classes and rules, track width for current, voltage clearance, vias, ground pours and return paths, routing order, differential pairs and impedance at JLC, then DRC until nothing is unrouted. Use when routing or re-routing, choosing track widths or net classes, adding pours, or reviewing routing. Edits are made with kicad-board-edit."
 ---
 
 # Route a board

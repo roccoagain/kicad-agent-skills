@@ -1,6 +1,6 @@
 ---
 name: kicad-schematic
-description: Change a KiCad 10 schematic (.kicad_sch) safely as text and keep it readable - values and part fields (MPN, LCSC and distributor numbers, voltage, dielectric), new symbols (copying and flattening library symbols, native pin stacks, pin coordinates under rotation and mirroring), wiring, labels, power flags, annotation and hierarchical sheets, then subcircuit blocks, small passives, power-symbol conventions and zoomed visual checks - verified against KiCad's own netlist and ERC, then carried to the board and the project's documents. Use before and after any schematic change, when drawing a new schematic, or when the user asks to change a part, value or connection.
+description: "Edit a KiCad 10 schematic as text and keep it readable: change values and fields, add symbols, wires, labels, power symbols and sheets, then verify with the netlist and ERC and carry the change to the board. Use for any schematic change, such as adding a part, connecting nets or changing a value, and when drawing a new schematic. To create a symbol, use kicad-library."
 ---
 
 # Change a schematic
