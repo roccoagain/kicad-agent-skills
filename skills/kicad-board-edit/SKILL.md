@@ -50,10 +50,15 @@ Command line, with `KPY`:
   footprint changes, routed pads on changed nets, and parts the schematic lacks.
 - `board.py new board.kicad_pcb W H --holes M3`: a new board with a rounded W × H outline at (100, 100) and four
   mounting holes.
+- `board.py rules board.kicad_pro --power +5V,+3V3,GND --power-width 0.5`: JLC-safe minimums, a 0.2/0.25 mm Default
+  class and a Power class, written to the `.kicad_pro` (`set_rules()` for other classes; see `kicad-routing`).
+
+In a script, `drc("board.kicad_pcb", rules="other.kicad_dru", parity=False)` (from `board`) runs DRC on a temporary
+copy against another rule file, such as `kicad-assembly-export`'s edge-clearance rule.
 
 Lengths are mm in board coordinates (y down). Points are `(x, y)` or a pad `(ref, num)`. Track widths default to
 the net's class in the `.kicad_pro`. A two-pad part at 0° has pad 1 on the left; at 90°, pad 1 is below;
-at 270°, above.
+at 270°, above. `gnd_via()` draws its stub on F.Cu unless you pass `layer="B.Cu"` for a bottom-side pad.
 
 ## Rules
 

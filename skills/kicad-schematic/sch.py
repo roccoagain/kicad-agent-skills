@@ -13,6 +13,7 @@
     s.connect(("U2", "4"), ("C5", "1"))                   # wire, one bend if needed
     s.nc("U2", "7")
     s.set_field("R3", "Value", "1k")                      # existing or new part
+    s.refresh_symbol("MyLib:LDO")                         # re-copy a symbol changed in its library
     s.box(20, 25, 120, 85, "POWER INPUT")
     s.save()                                              # writes, adds junctions, runs ERC and lint
 
@@ -56,6 +57,10 @@ def symbol_dirs():
     out = [os.environ.get("KICAD10_SYMBOL_DIR"), "/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols",
            "/usr/share/kicad/symbols", r"C:\Program Files\KiCad\10.0\share\kicad\symbols"]
     return [p for p in out if p and os.path.isdir(p)]
+
+
+CONFIG = {"darwin": "~/Library/Preferences/kicad/10.0", "linux": "~/.config/kicad/10.0"}.get(
+    sys.platform, os.path.join(os.environ.get("APPDATA", ""), "kicad", "10.0"))
 
 
 # ----------------------------------------------------------------------------- s-expressions
@@ -156,15 +161,29 @@ def snap(v):
 # ----------------------------------------------------------------------------- libraries
 class Libraries:
     def __init__(self, project_dir):
+        """Libraries from the project's sym-lib-table, then the global one (nested tables followed), then KiCad's
+        stock symbols folder."""
         self.tables = {}
-        table = os.path.join(project_dir, "sym-lib-table")
-        if os.path.exists(table):
-            for m in re.finditer(r'\(name "([^"]+)"\)\s*\(type "[^"]+"\)\s*\(uri "([^"]+)"\)', open(table).read()):
-                self.tables[m.group(1)] = m.group(2).replace("${KIPRJMOD}", project_dir)
+        dirs = symbol_dirs()
+        env = {"KIPRJMOD": project_dir, "KICAD10_SYMBOL_DIR": dirs[0] if dirs else ""}
+
+        def expand(uri):
+            return re.sub(r"\$\{(\w+)\}", lambda m: os.environ.get(m.group(1), env.get(m.group(1), m.group(0))), uri)
+
+        def read(table, depth=0):
+            if depth > 4 or not os.path.exists(table):
+                return
+            for m in re.finditer(r'\(name "([^"]+)"\)\s*\(type "([^"]+)"\)\s*\(uri "([^"]+)"\)', open(table).read()):
+                if m.group(2) == "Table":
+                    read(expand(m.group(3)), depth + 1)
+                else:
+                    self.tables.setdefault(m.group(1), expand(m.group(3)))
+        read(os.path.join(project_dir, "sym-lib-table"))
+        read(os.path.expanduser(f"{CONFIG}/sym-lib-table"))
         self.cache = {}
 
     def file(self, lib):
-        if lib in self.tables:
+        if lib in self.tables and os.path.exists(self.tables[lib]):
             return self.tables[lib]
         for d in symbol_dirs():
             p = os.path.join(d, lib + ".kicad_sym")
@@ -265,6 +284,7 @@ class Schematic:
         self.new_syms = {}          # ref -> dict for symbols added in this edit
         self.field_edits = []       # (ref, name, value)
         self.removals = []          # refs to remove with their stubs
+        self.refreshed = []         # lib_ids whose cached copy in lib_symbols is replaced on save
 
     def _project_name(self):
         pros = glob.glob(os.path.join(os.path.dirname(self.path), "*.kicad_pro"))
@@ -313,6 +333,16 @@ class Schematic:
         if str(num) not in p:
             raise KeyError(f"{ref} has no pin {num!r}; pins: {sorted(p, key=_natural)}")
         return p[str(num)]
+
+    def refresh_symbol(self, lib_id):
+        """Replace this sheet's cached copy of lib_id (in lib_symbols) with the library's current version, after the
+        symbol was changed in its library. Every placed instance picks it up. Check ERC and the netlist after."""
+        if lib_id not in self.lib_defs or any(d is self.lib_defs[lib_id] for d in self.new_libs):
+            raise KeyError(f"{lib_id} isn't in this sheet's lib_symbols")
+        lib, name = lib_id.split(":", 1)
+        self.libs.cache.pop(lib, None)                      # re-read the library file
+        self.lib_defs[lib_id] = self.libs.flat(lib, name)
+        self.refreshed.append(lib_id)
 
     def next_ref(self, prefix):
         used = set(self.placed) | set(self.new_syms)
@@ -621,6 +651,16 @@ class Schematic:
                 f'(unit {s["unit"]}) (exclude_from_sim no) {s["flags"]} (uuid {q(U())})\n\t\t'
                 + "\n\t\t".join(s["props"]) + f"\n\t\t{s['pins']}\n\t\t(instances (project {q(self.project)} "
                 f'(path {q("/" + self.root_uuid)} (reference {q(ref)}) (unit {s["unit"]})))))')
+        for lib_id in dict.fromkeys(self.refreshed):
+            ls = next(s for s in top_spans(text) if s[2] == "lib_symbols")
+            block = text[ls[0]:ls[1]]
+            old = next((s for s in top_spans(block) if s[2] == "symbol"
+                        and block[s[0]:].startswith(f"(symbol {q(lib_id)}")), None)
+            if old is None:
+                raise KeyError(f"refresh_symbol: {lib_id} not found in lib_symbols")
+            block = block[:old[0]] + ser(self.lib_defs[lib_id], 3) + block[old[1]:]
+            text = text[:ls[0]] + block + text[ls[1]:]
+        self.refreshed = []
         spans = top_spans(text)
         if self.new_libs:
             ls = next(s for s in spans if s[2] == "lib_symbols")

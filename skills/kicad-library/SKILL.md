@@ -151,6 +151,7 @@ A footprint file looks like this: `(footprint "Name" (version 20260206) (generat
 ## Changing a part that's already in use
 
 - **Schematics:** each schematic keeps its own copy of the symbol. `lib_symbol_mismatch` catches moved pins, but not
-  renamed ones. Re-copy the symbol into every schematic that uses it (`kicad-schematic`), then check the netlist.
+  renamed ones. Re-copy the symbol into every schematic that uses it with
+  `s.refresh_symbol("Lib:Name")` (`kicad-schematic`), then check the netlist.
 - **Boards:** each board keeps its own copy of the footprint, so DRC reports `lib_footprint_mismatch`. To update it,
   delete the part, re-add it with `board.py sync`, and re-route its pads.

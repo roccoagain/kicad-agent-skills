@@ -20,12 +20,16 @@ check, ending in PASS or FAIL:
    - **Recommended pass:** a warning. JLC builds it, but it may print poorly or yield worse.
 
 Options:
-- `--no-jlc`: run just ERC and DRC (for another fab, or pass its rule files with `--rules-dir`).
+- `--no-jlc`: run just ERC and DRC.
+- `--rules-dir DIR`: take the rule files from DIR instead. They must keep this folder's names
+  (`jlcpcb-2layer-limits.kicad_dru`, `jlcpcb-2layer-recommended.kicad_dru` and the `multilayer` pair), even for
+  another fab; the output still labels them "JLC".
 - `--json out.json`: keep the full reports.
 
-Library-table warnings (`lib_footprint_issues`) are dropped from the JLC passes: the copy can't reach the project's
-libraries. The rule files assume JLC's standard FR-4 process with 1 oz outer copper. For 2 oz, edit the values
-marked `[2oz]` in copies of both files (same names) in another folder, and pass `--rules-dir <that folder>`.
+Library warnings (`lib_footprint_issues`, `lib_footprint_mismatch`) are dropped from the JLC passes: the copy can't
+reach the project's libraries. The rule files assume JLC's standard FR-4 process with 1 oz outer copper. For 2 oz,
+edit the values marked `[2oz]` in copies of both files (same names) in another folder, and pass
+`--rules-dir <that folder>`.
 
 ## Rule files
 - **Comments on their own line.** KiCad 10.0.5 silently skips every rule after a `#` comment that shares a line with
@@ -65,7 +69,8 @@ Read these from the `.kicad_pcb` and report them. The values are for JLC's stand
   - Board Setup's "Minimum web width" should match.
 - **Silkscreen:**
   - line width at least 0.15 mm. Stock footprints use 0.12 mm, which JLC prints, but mention it;
-  - text stroke at least 1/6 of the text height.
+  - text stroke at least 1/6 of the text height. KiCad's default 1.0 mm / 0.15 mm text is just under that; mention
+    it, but it isn't an error.
 - **Assembly:** see `kicad-assembly-export`.
 
 ## Report

@@ -7,7 +7,7 @@ description: "Write or update a board's bring-up and test plan (TEST_PLAN.md) fr
 
 The plan should catch an assembly fault before it destroys anything, and point to the faulty part when a reading is
 wrong. Compute every expected number from the schematic and datasheets, and show the working so the number can be
-recomputed after a change. Read the circuit (`kicad-view`: the PDF and the pin list) and the design notes first.
+recomputed after a change. Read the circuit (`kicad-view`: the sheet plots and the pin list) and the design notes first.
 
 ## TEST_PLAN.md layout
 

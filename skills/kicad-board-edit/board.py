@@ -17,11 +17,14 @@
     b.score()                                                # placement metrics, before or instead of saving
     b.save()                                                 # writes, refills zones, runs DRC with parity
 
-    python3 board.py pads board.kicad_pcb [REF ...]          # pad positions and nets (KiCad's Python)
-    python3 board.py score board.kicad_pcb [--skip GND]      # airwires, crossings, courtyard overlaps, edge
-    python3 board.py sync board.kicad_pcb [x y]              # bring the board in line with the schematic
-    python3 board.py new board.kicad_pcb W H [--holes M3]    # new board with a rounded outline at (100, 100)
-    python3 board.py rules board.kicad_pro [--power +5V,+3V3,GND] [--power-width 0.5]   # JLC minimums, net classes
+Command line, with KiCad's bundled Python ("$KPY" -I board.py ...):
+    board.py pads board.kicad_pcb [REF ...]                  # pad positions and nets
+    board.py score board.kicad_pcb [--skip GND]              # airwires, crossings, courtyard overlaps, edge
+    board.py sync board.kicad_pcb [x y]                      # bring the board in line with the schematic
+    board.py new board.kicad_pcb W H [--holes M3]            # new board with a rounded outline at (100, 100)
+    board.py rules board.kicad_pro [--power +5V,+3V3,GND] [--power-width 0.5]   # JLC minimums, net classes
+
+drc(board, rules="x.kicad_dru", parity=False) runs DRC on a temporary copy against another rule file.
 
 All lengths are mm in board coordinates (y down). Rotation follows KiCad: +90 is counter-clockwise; a two-pad
 part at 0° has pad 1 on the left, at 90° below, at 270° above.
@@ -89,10 +92,10 @@ def footprint_libs(proj):
                 libs.setdefault(m.group(1), _expand(m.group(3), proj))
     read(os.path.join(proj, "fp-lib-table"))
     read(os.path.expanduser(f"{CONFIG}/fp-lib-table"))
-    if not libs:                                            # no global table yet: KiCad's stock libraries
-        for d in os.listdir(f"{SHARE}/footprints"):
-            if d.endswith(".pretty"):
-                libs[d[:-7]] = f"{SHARE}/footprints/{d}"
+    stock = f"{SHARE}/footprints"                           # KiCad's stock libraries, if no table names them
+    for d in (os.listdir(stock) if os.path.isdir(stock) else []):
+        if d.endswith(".pretty"):
+            libs.setdefault(d[:-7], f"{stock}/{d}")
     return libs
 
 
@@ -812,7 +815,7 @@ def main(argv):
             for num, (px, py, net, (w, h)) in sorted(b.pads(ref).items(),
                                                      key=lambda kv: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", kv[0])]):
                 print(f"  {num or '-':>4} ({px:g}, {py:g}) {w:g}x{h:g}  {net}")
-    elif len(argv) >= 2 and argv[0] == "sync":
+    elif len(argv) in (2, 4) and argv[0] == "sync":
         sync(argv[1], *(float(v) for v in argv[2:4]))
     elif len(argv) >= 4 and argv[0] == "new":
         holes = argv[argv.index("--holes") + 1] if "--holes" in argv else None

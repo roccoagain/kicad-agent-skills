@@ -5,8 +5,8 @@
     python3 jlc_asm.py check fab/assembly/<p>_bom.csv fab/assembly/<p>_cpl.csv
 
 cpl: KiCad's position file (Ref,Val,Package,PosX,PosY,Rot,Side) -> JLC's CPL, applying rotation offsets from
-jlc-rotations.csv (columns Match,Offset; Match is a designator or a Package value, a designator row wins). Deletes
-the raw file.
+jlc-rotations.csv (columns Match,Offset; Match is a designator or a Package value, a designator row wins), and
+writing Layer as Top/Bottom. Deletes the raw file.
 check: BOM against CPL: parts in one file only, placed parts without an LCSC number, malformed LCSC numbers, sides,
 oversized rows. Exit code 1 if any part is in one file only or lacks a number.
 """
@@ -17,6 +17,8 @@ import sys
 
 
 def cpl(raw, out, corr=""):
+    if os.path.abspath(raw) == os.path.abspath(out):
+        sys.exit("cpl: the output must differ from KiCad's raw file (which is deleted afterwards)")
     offsets = {}
     if corr and os.path.exists(corr):
         offsets = {r["Match"]: float(r["Offset"]) for r in csv.DictReader(open(corr, newline=""))}
@@ -25,7 +27,7 @@ def cpl(raw, out, corr=""):
         w.writerow(["Designator", "Val", "Package", "Mid X", "Mid Y", "Rotation", "Layer"])
         for r in csv.DictReader(f):
             rot = (float(r["Rot"]) + offsets.get(r["Ref"], offsets.get(r["Package"], 0.0))) % 360
-            w.writerow([r["Ref"], r["Val"], r["Package"], r["PosX"], r["PosY"], f"{rot:g}", r["Side"]])
+            w.writerow([r["Ref"], r["Val"], r["Package"], r["PosX"], r["PosY"], f"{rot:g}", r["Side"].capitalize()])
     os.remove(raw)
     print(f"wrote {out}")
 

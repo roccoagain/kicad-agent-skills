@@ -43,7 +43,8 @@ Outer layers at a 10 °C rise, from IPC-2221 (`I = 0.048 · ΔT^0.44 · A^0.725`
 | 5 A | 2.8 mm | 1.4 mm |
 
 - **20 °C rise:** about ⅔ of these widths.
-- **Inner layers:** about 2.5× the width; JLC's inner copper is 0.5 oz.
+- **Inner layers:** about 2.6× the width at the same copper weight. JLC's inner copper is 0.5 oz, so take about 5×
+  the 1 oz column.
 - **Voltage drop:** 1 oz copper is about 0.5 mΩ per square (0.3 × 30 mm ≈ 50 mΩ).
 - **Vias:** a 0.3 mm via carries about 1 A.
 
@@ -73,7 +74,8 @@ the clearance.
 - **Width and gap:** from the fab's impedance calculator for the stackup you will order (JLC has one).
 - **2-layer 1.6 mm boards:** 90 Ω needs impractically wide tracks. USB full-speed only needs short and matched;
   anything faster needs 4 layers.
-- **Length:** sum `Track.length` per net to compare a pair.
+- **Length:** compare a pair by summing `t.GetLength()` (mm via `pcbnew.ToMM`) over each net's tracks, in KiCad's
+  Python. Via barrels aren't included.
 - **Nearby pour** lowers impedance: keep it 3 track widths away, or design the line as coplanar waveguide.
 
 ## Pin swaps
@@ -84,8 +86,9 @@ units, same-function GPIOs, order-free connector pins). Confirm in the datasheet
 
 ## Doing it with board.py
 
-1. **Plan from numbers.** `board.py pads` gives every pad's centre, size and net. A segment needs the clearance plus
-   half of each width from other copper.
+1. **Plan from numbers.** `board.py pads` gives every pad's centre, size and net. Centreline to the edge of other
+   copper: the clearance plus half the track width. Centreline to centreline of two tracks: the clearance plus half
+   of each width.
 2. **One routing script**, in a fresh process after placement: `connect` pad to pad (adding waypoints where the path
    must turn), `track` where every corner matters, vias where a net changes layer, `zone(...)` last.
 3. **Iterate on the script, not the board:** start it with `remove_tracks(nets=["*"]); remove_zones()`, so a rerun

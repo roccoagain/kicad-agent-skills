@@ -18,6 +18,8 @@ Run it in batch mode: `ngspice -b deck.cir`.
 
 ## 1. Get the circuit
 
+`K` is `kicad-cli` (see `kicad-view`).
+
 ```bash
 "$K" sch export netlist --format spice -o <scratch>/board.cir board.kicad_sch
 ```

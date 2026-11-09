@@ -55,7 +55,8 @@ Run this after the DRC gate and the Gerbers:
 ```
 
 Then convert KiCad's position file into JLC's CPL, applying rotation corrections from `jlc-rotations.csv` in the
-project (columns `Match,Offset`; `Match` is a designator or a `Package` value, and a designator row wins):
+project (columns `Match,Offset`; `Match` is a designator or a `Package` value, and a designator row wins) and writing
+the side as `Top`/`Bottom`:
 
 ```bash
 python3 <skill dir>/jlc_asm.py cpl fab/assembly/<p>_cpl-all-pos.csv fab/assembly/<p>_cpl.csv jlc-rotations.csv
@@ -70,9 +71,10 @@ The y values come out negative. That's expected, and they match the Gerbers.
 
    - **No LCSC number:** JLC won't fit the part. Say whether the user will supply it or hand-solder it later.
    - **Both sides listed:** the order needs Standard assembly.
-2. **Distance from the edge.** JLC wants part bodies at least 2.5 mm from the edge, unless rails are added. Run DRC on a
-   copy with `jlcpcb-assembly.kicad_dru`, the same way as `kicad-check` step 3. First, add any parts JLC won't place to
-   the file's exclusion list.
+2. **Distance from the edge.** JLC wants part bodies at least 2.5 mm from the edge, unless rails are added. First add
+   any parts JLC won't place to the exclusion list in a copy of `jlcpcb-assembly.kicad_dru`, then, with KiCad's Python
+   (`kicad-board-edit`), run `drc("board.kicad_pcb", rules="<copy>", parity=False)` from `board.py`. It runs on a
+   temporary copy; the findings that matter name the rule "JLC assembly: part to board edge".
 3. **Economic or Standard:**
 
    | | Economic | Standard |

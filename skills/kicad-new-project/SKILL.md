@@ -12,7 +12,8 @@ Get these from the user or the design notes:
 - **Board:** size and shape, and what fixes them (the enclosure, holes, edge connectors).
 - **Layers and thickness.**
 - **Fab and assembly:** which fab, and hand or machine assembly. The bundled rules, jobsets and fab checks are JLC's;
-  for another fab, set its minimums with `set_rules()` and pass its rule files to `check.py --rules-dir`.
+  for another fab, set its minimums with `set_rules()` and pass its rule files to `check.py --rules-dir` (named
+  like the bundled ones; see `kicad-check`).
 
 ## Steps
 
@@ -36,20 +37,19 @@ The project name is the shared stem of the `.kicad_pro`, `.kicad_sch` and `.kica
    ```
 
    This sets minimums at or above JLC's limits, a 0.2/0.25 mm Default class, and a Power class (all arguments of
-   `set_rules()`). For other classes,
-   call `set_rules(pro, classes={...})`. See `kicad-routing` for widths, and for `.kicad_dru` rules (DRC doesn't
-   enforce class widths by itself).
+   `set_rules()`). For other classes, call `set_rules(pro, classes={...})`. See `kicad-routing` for widths, and
+   for `.kicad_dru` rules (DRC doesn't enforce class widths by itself).
 
 3. **Schematic:** `Schematic.new("<dir>/<name>.kicad_sch", title=..., date=...)`, then draw it with
    `kicad-schematic`. ERC must be clean before the next step.
 
-4. **Parts onto the board:** run `"$KPY" -I board.py sync <dir>/<name>.kicad_pcb`. It adds every part, with its
-   nets, in a row below the outline.
+4. **Parts onto the board:** run `"$KPY" -I <board-edit dir>/board.py sync <dir>/<name>.kicad_pcb`. It adds every
+   part, with its nets, in a row below the outline.
 
 5. **Place, pour and route:**
    - Place the parts (`kicad-placement`).
-   - Add the pours: `b.zone("GND", ["F.Cu", "B.Cu"])`. A pour needs its net on the board, so do this after sync.
-   - Route (`kicad-routing`).
+   - Route (`kicad-routing`), with the pours (`b.zone("GND", ["F.Cu", "B.Cu"])`) at the end of the routing script,
+     which starts with `remove_zones()`. A pour needs its net on the board, so this comes after sync.
    - Check (`kicad-check`).
 
 For a new revision, copy the whole old folder (e.g. `rev1/` to `rev2/`). Library paths that use `${KIPRJMOD}/..` keep

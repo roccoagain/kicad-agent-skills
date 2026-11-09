@@ -40,7 +40,7 @@ behind it.
 | Absolute max, every IC pin | Inside the rating, including relative to its own rails when they're at 0 V |
 | Clamp diodes | Current through the series resistance stays under the injection rating. If the datasheet gives no rating, report that as a risk |
 | Operating range | Inputs stay inside the common-mode range, and outputs don't clip at the levels the design assumes |
-| Resistor power | V²/R at worst case, under the rating (0805 ≈ 0.125 W, 1206 ≈ 0.25 W unless stated) |
+| Resistor power | V²/R at worst case, under the rating (0402 ≈ 0.063 W, 0603 ≈ 0.1 W, 0805 ≈ 0.125 W, 1206 ≈ 0.25 W unless stated) |
 | Capacitor voltage | Under the rating. Electrolytics are never reverse-biased by more than ≈ 0.5 V |
 | Ceramic DC bias | X5R/X7R run at no more than ~50 % of rated voltage, or the maker's bias curve shows enough capacitance |
 | MOSFETs, switches | Vgs and Vds inside ratings, current under the limit, and the gate never floats |

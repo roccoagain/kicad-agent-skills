@@ -79,10 +79,12 @@ def main(argv):
             try:
                 from sch import lint                        # readability: warnings, never a FAIL
                 report["lint"] = lint(sch, show=8)
-            except ImportError:
-                pass
-        if not os.path.exists(pcb):
-            return int(failed)
+            except Exception as e:                          # never let lint stop ERC/DRC from reporting
+                print(f"lint skipped: {type(e).__name__}: {e}")
+    if not os.path.exists(pcb):
+        print(f"no board ({os.path.basename(pcb)}): DRC and JLC passes skipped")
+        return finish(argv, report, failed)
+    with tempfile.TemporaryDirectory() as d:
         drc = run_json([K, "pcb", "drc", "--format", "json", "--severity-all", "--refill-zones", "--schematic-parity",
                         "-o", f"{d}/drc.json", pcb], f"{d}/drc.json")
         vs, un, par = drc.get("violations", []), drc.get("unconnected_items", []), drc.get("schematic_parity", [])
@@ -120,6 +122,10 @@ def main(argv):
         m = re.search(r"\(thickness ([\d.]+)\)", open(pcb).read())
         print(f"Board: {kind if jlc else ''} thickness {m.group(1) if m else '?'} mm "
               "(size, slots, mask, silk legibility: see the skill's checklist)")
+    return finish(argv, report, failed)
+
+
+def finish(argv, report, failed):
     if "--json" in argv:
         json.dump(report, open(argv[argv.index("--json") + 1], "w"), indent=1)
     print("FAIL" if failed else "PASS")

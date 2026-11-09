@@ -71,8 +71,14 @@ Facts that trip the drawing up:
 
 ## Limits of sch.py
 
-- **Multi-sheet designs:** it edits one sheet file at a time and writes root-sheet instance paths. For symbols on a
-  sub-sheet, write the instance path `"/<root uuid>/<sheet uuid>"` yourself, or ask.
+- **Multi-sheet designs:** it edits one sheet file at a time, and every new symbol gets the instance path
+  `"/<this file's uuid>"`, which is right only on the root sheet. On a sub-sheet, change each new symbol's
+  `(instances (project ... (path ...)))` by hand to `"/<root sheet uuid>/<sheet symbol uuid>"`, or ask.
+- **Multi-unit symbols** (dual op-amps, gate packages): one unit per reference. `add()` refuses a second unit of an
+  existing reference, and `pins(ref)` sees only one unit of a placed part. Place the other units in KiCad, or by hand
+  edits checked with ERC.
+- **Library changes:** a sheet keeps its own copy of each symbol. After changing a symbol in its library, call
+  `s.refresh_symbol("Lib:Name")` so the sheet uses the new version; `remove()` and `add()` alone keep the old copy.
 - **Moving or replacing a part:** use `remove(ref)`, then `add()` it again with its connections. `remove()` takes
   the stub wires, labels, power symbols and no-connects that hang off the part's pins. It stops at branches and at
   other parts' pins, so shared nets survive.
@@ -86,7 +92,7 @@ Facts that trip the drawing up:
 1. **ERC and lint** print on every save: no new errors or problems (`kicad-check` for the full run).
 2. **Netlist:** check every touched pin is on the intended net and nothing else changed (`view.py pins`, diff with
    before).
-3. **Update the board:** run `board.py sync` (`kicad-board-edit`). It adds parts, copies values and fields, and moves
-   unrouted pads to new nets. A footprint change, or a routed pad on a changed net, needs re-routing.
+3. **Update the board:** run `"$KPY" -I board.py sync` (`kicad-board-edit`). It adds parts, copies values and
+   fields, and moves unrouted pads to new nets. A footprint change, or a routed pad on a changed net, needs re-routing.
 4. **Update the documents:** design notes, the test plan (`kicad-bringup`) if a reading changed, and the BOM/order if a
    part number changed.
