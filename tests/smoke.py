@@ -258,6 +258,9 @@ print("RESULT errors", len(errs), "unconnected", len(rep["unconnected_items"]), 
 
 def rerun_safety(d):
     pcb = f"{d}/{NAME}.kicad_pcb"
+    code, out = run([f"{BRD}/board.py", "nets", pcb], kpy=True)
+    step("board nets: lengths, widths, vias and via-to-GND distance", code == 0 and
+         re.search(r"^\+5V\t[\d.]+ mm, width 0\.5-0\.5", out, re.M) and "nearest GND via" in out, out[-600:])
     code, out = run([f"{BRD}/board.py", "tracks", pcb, "/OUT"], kpy=True)
     step("board tracks lists /OUT's segments and via", code == 0 and "/OUT\tvia (117.4, 111.095)" in out
          and "B.Cu" in out, out[-600:])

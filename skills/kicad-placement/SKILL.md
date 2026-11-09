@@ -1,6 +1,6 @@
 ---
 name: kicad-placement
-description: "Decides where parts go on a KiCad 10 PCB: pin assignment from the floor plan, datasheet layout constraints, fitting passives at fine-pitch pins, assembly clearances, and comparing candidate placements with board.py score. Use when planning, reviewing or redoing a layout's placement. Moves are made with kicad-board-edit."
+description: "Decides where parts go on a KiCad 10 PCB: pin assignment from the floor plan, datasheet layout constraints, fitting passives at fine-pitch pins, assembly clearances, and comparing candidate placements with board.py score. Use when planning a new placement or redoing one. Moves are made with kicad-board-edit; to judge a finished layout, use kicad-layout-review."
 ---
 
 # Where parts go

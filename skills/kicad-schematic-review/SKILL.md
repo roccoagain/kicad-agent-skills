@@ -1,9 +1,12 @@
 ---
-name: kicad-design-review
-description: "Reviews a KiCad schematic's electrical design against datasheets: what each connector can see (power states, misuse, ESD), absolute maximum ratings, clamp current, resistor and capacitor ratings and derating, floating inputs, interfaces between boards. Use before ordering, after a schematic change, when adding a part, or when the user asks whether an input can take a voltage or whether the design survives a fault."
+name: kicad-schematic-review
+description: "Reviews a KiCad schematic's electrical design (the circuit, not the board) against datasheets: what each connector can see (power states, misuse, ESD), absolute maximum ratings, clamp current, resistor and capacitor ratings and derating, floating inputs, interfaces between boards. Use before ordering, after a schematic change, when adding a part, or when the user asks whether an input can take a voltage or whether the design survives a fault. For the board layout, use kicad-layout-review; for ERC, DRC and manufacturing limits, kicad-check."
 ---
 
-# Review a circuit by hand
+# Review a schematic
+
+This covers the schematic: what each part sees electrically. Where parts sit and how they're connected on the board
+is `kicad-layout-review`.
 
 Read the schematic and netlist (`kicad-view`) and each part's datasheet. Two netlist checks to run first:
 `view.py decoupling` (every IC supply pin has a capacitor on its rail) and, if the design notes list key connections
@@ -53,7 +56,7 @@ behind it.
 | ESD | Every exposed pin has a TVS or ESD diode at the connector, rated for the signal's swing |
 | Floating inputs | Every input has a DC path to a defined level in every power state |
 | Start-up | Boot and strap pins are at the intended level at power-up, and programming/debug pins are reachable |
-| Polarity and pinout | Each diode's, LED's and SOT-23 transistor's symbol pin numbers match the footprint for the exact part (BCE vs EBC differs by maker); polarised parts have a silk mark |
+| Polarity and pinout | Each diode's, LED's and SOT-23 transistor's symbol pin numbers match the footprint for the exact part (BCE vs EBC differs by maker) |
 | Board interfaces | Each signal stays within what the other board's notes accept |
 
 If an assumed value decides a pass or fail, report the assumption itself as a finding.

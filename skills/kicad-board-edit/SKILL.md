@@ -48,6 +48,8 @@ Command line, with `KPY`:
   this.
 - `board.py tracks board.kicad_pcb [NET ...]`: every track's ends, layer and width, and every via. To join a net that
   already has copper, end the new track exactly on one of these points (or put a via there).
+- `board.py nets board.kicad_pcb`: each net's routed length, narrowest and widest track, layers and vias, and each
+  signal via's distance to the nearest ground via.
 - `board.py score board.kicad_pcb [--skip GND]`: airwire length per net and per part, airwire crossings, courtyard
   overlaps, parts near or past the edge, how much of the board the parts cover, and each capacitor's distance from
   its rail pad to the nearest IC pad on that rail. Poured nets are skipped in the airwires; routed connections still
@@ -81,7 +83,7 @@ at 270°, above. `gnd_via()` draws its stub on F.Cu unless you pass `layer="B.Cu
   values, fields and pin swaps. Nets come only from the schematic; `board.py` can't invent one.
 - **Clean git tree** before each edit, so it's one diff. A project outside git: copy its files to `<scratch>`
   first, or ask the user to `git init`. Every save refills the pours, so the diff also rewrites their
-  `filled_polygon` blocks; review the other changes.
+  `filled_polygon` blocks; read the other changes.
 - **Scripts live in `<scratch>`.** A one-off edit script replayed later undoes newer work, so it's never committed.
   For a layout job, keep one placement script and one routing script, each starting with the removals that undo its
   own output (`remove_outline()`, `remove_texts()` and holes; `remove_tracks(nets=["*"])` and `remove_zones()`).

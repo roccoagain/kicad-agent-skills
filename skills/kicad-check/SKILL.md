@@ -1,6 +1,6 @@
 ---
 name: kicad-check
-description: "Runs ERC and DRC (with schematic parity) on a KiCad 10 design, then checks the board against JLCPCB's manufacturing limits, including what DRC can't check (size, thickness, slots, mask, silk). Use after any schematic or board change, before committing, when there are ERC or DRC errors, or when the user asks whether a board is ready to order or manufacturable."
+description: "Runs ERC and DRC (with schematic parity) on a KiCad 10 design, then checks the board against JLCPCB's manufacturing limits, including what DRC can't check (size, thickness, slots, mask, silk). Use after any schematic or board change, before committing, when there are ERC or DRC errors, or when the user asks whether a board can be manufactured. Whether the circuit and layout are right is kicad-schematic-review and kicad-layout-review."
 ---
 
 # Check a KiCad design

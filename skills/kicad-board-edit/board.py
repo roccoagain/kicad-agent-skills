@@ -22,6 +22,7 @@
 Command line, with KiCad's bundled Python ("$KPY" -I board.py ...):
     board.py pads board.kicad_pcb [REF ...]                  # pad positions and nets
     board.py tracks board.kicad_pcb [NET ...]                # every track's ends, layer and width, and every via
+    board.py nets board.kicad_pcb                            # per net: length, widths, layers, vias, via-to-GND-via
     board.py score board.kicad_pcb [--skip GND]              # airwires, crossings, overlaps, edge, decoupling
     board.py sync board.kicad_pcb [x y]                      # bring the board in line with the schematic
     board.py new board.kicad_pcb W H [--holes M3]            # new board with a rounded outline at (100, 100)
@@ -558,6 +559,36 @@ class Board:
         return dict(airwire=total, nets=per_net, parts=per_part, crossings=crossings, overlaps=overlaps,
                     edge=edge, cover=cover, decoupling=decoupling)
 
+    def net_stats(self, show=True):
+        """Per net: routed length, narrowest and widest track, layers, and vias. For each via on a net that isn't
+        ground, the distance to the nearest ground via: a signal changing layers needs a ground via nearby for its
+        return current. Prints a table (unless show=False); returns {net: dict}."""
+        def ground(n):
+            return bool(re.search(r"GND|VSS", n.upper()))
+        out = {}
+        for t in self.board.GetTracks():
+            n = out.setdefault(t.GetNetname(), dict(length=0.0, widths=[], layers=set(), vias=[]))
+            if t.GetClass() == "PCB_VIA":
+                q = t.GetPosition()
+                n["vias"].append((TOMM(q.x), TOMM(q.y)))
+            else:
+                n["length"] += TOMM(t.GetLength())
+                n["widths"].append(TOMM(t.GetWidth()))
+                n["layers"].add(self.board.GetLayerName(t.GetLayer()))
+        gnd_vias = [v for name, n in out.items() if ground(name) for v in n["vias"]]
+        for name, n in out.items():
+            n["via_to_gnd"] = [] if ground(name) else [
+                round(min((math.dist(v, g) for g in gnd_vias), default=float("inf")), 2) for v in n["vias"]]
+        if show:
+            for name in sorted(out, key=lambda k: (ground(k), k)):
+                n = out[name]
+                w = f"{min(n['widths']):g}-{max(n['widths']):g}" if n["widths"] else "-"
+                g = (f"; nearest GND via {', '.join(f'{d:g}' for d in n['via_to_gnd'])} mm"
+                     if n["via_to_gnd"] else "")
+                print(f"{name or '(no net)'}\t{n['length']:.1f} mm, width {w}, {','.join(sorted(n['layers'])) or '-'}, "
+                      f"{len(n['vias'])} vias{g}")
+        return out
+
     def _decoupling(self):
         """[(cap, rail, "U2.4", mm)] for every capacitor between a ground and another net: the distance from its rail
         pad to the nearest IC pad (U*/IC*) on that rail, farthest first."""
@@ -930,6 +961,8 @@ def main(argv):
             for num, (px, py, net, (w, h)) in sorted(b.pads(ref).items(),
                                                      key=lambda kv: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", kv[0])]):
                 print(f"  {num or '-':>4} ({px:g}, {py:g}) {w:g}x{h:g}  {net}")
+    elif len(argv) >= 2 and argv[0] == "nets":
+        Board(argv[1], check_lock=False).net_stats()
     elif len(argv) >= 2 and argv[0] == "tracks":
         b = Board(argv[1], check_lock=False)
         for t in sorted(b.board.GetTracks(), key=lambda t: (t.GetNetname(), t.GetClass())):

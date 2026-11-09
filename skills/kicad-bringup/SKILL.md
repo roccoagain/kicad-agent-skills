@@ -35,7 +35,7 @@ carry two different supplies, or a supply and ground. For each pair:
   can't support.
 - **Diodes or clamps across the pair:** give both polarities, and say where the red lead goes.
 
-Run the assembly-fault pass from `kicad-design-review` section 3. Each bridge, missing part, rotated part or
+Run the assembly-fault pass from `kicad-schematic-review` section 3. Each bridge, missing part, rotated part or
 wrong-value part that would cause damage at first power must change at least one Stage 1 reading. Add steps until it
 does.
 
@@ -51,7 +51,7 @@ does.
 ## Stage 3: function, block by block
 
 For each block: the input to apply, the probe point, and the expected result with its working. Misuse cases that
-`kicad-design-review` says the board survives may be tested gently, at a low current limit; say what the test risks.
+`kicad-schematic-review` says the board survives may be tested gently, at a low current limit; say what the test risks.
 
 ## Keeping it right
 

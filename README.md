@@ -1,8 +1,8 @@
 # kicad-agent-skills
 
 Agent Skills for designing PCBs in KiCad 10 with a coding agent: from a new project and schematic through parts,
-placement, routing, checks (including JLCPCB's limits), review and simulation, to fab and assembly files and a
-bring-up plan. The agent drives KiCad, so you don't have to open it.
+placement, routing, checks (including JLCPCB's limits), schematic and layout reviews and simulation, to fab and
+assembly files and a bring-up plan. The agent drives KiCad, so you don't have to open it.
 
 Edits go through small Python scripts bundled with the skills (`sch.py`, `board.py`, `view.py`, `check.py`): the
 agent calls a few verbs by part and pin, and the scripts handle the file formats, pin geometry and KiCad's traps,
@@ -22,7 +22,8 @@ agent that reads the open [Agent Skills](https://agentskills.io) format, such as
 | `kicad-routing` | Route by hand: net classes, widths, clearances, pours |
 | `kicad-board-edit` | Board, sync from schematic, placement, tracks, vias, pours with `board.py` |
 | `kicad-check` | ERC, DRC and JLCPCB's limits in one run with `check.py` |
-| `kicad-design-review` | Review the circuit by hand against datasheets |
+| `kicad-schematic-review` | Review the schematic's circuit against datasheets |
+| `kicad-layout-review` | Review the finished board layout against datasheets and the circuit |
 | `kicad-simulate` | Simulate a stage with ngspice |
 | `kicad-fab-export` | Gerber and drill zip, STEP and DXF |
 | `kicad-assembly-export` | JLC BOM and CPL, with order checks (`jlc_asm.py`) |

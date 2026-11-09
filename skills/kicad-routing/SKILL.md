@@ -1,6 +1,6 @@
 ---
 name: kicad-routing
-description: "Routes a KiCad 10 board by hand with board.py: net classes and rules, track width for current, clearance for voltage, ground pours and return paths, differential pairs and impedance, then DRC until nothing is unrouted. Use when routing or re-routing, choosing track widths or net classes, adding pours, or reviewing routing. Edits are made with kicad-board-edit."
+description: "Routes a KiCad 10 board by hand with board.py: net classes and rules, track width for current, clearance for voltage, ground pours and return paths, differential pairs and impedance, then DRC until nothing is unrouted. Use when routing or re-routing, choosing track widths or net classes, or adding pours. Edits are made with kicad-board-edit; to judge a finished layout, use kicad-layout-review."
 ---
 
 # Route a board

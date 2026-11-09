@@ -15,7 +15,7 @@ Stock, prices and lifecycle change monthly. Look them up, never answer from memo
 
 ## 1. Requirements
 
-Take the worst cases from `kicad-design-review` and choose ratings with margin. Easy to miss:
+Take the worst cases from `kicad-schematic-review` and choose ratings with margin. Easy to miss:
 - **Ceramic capacitors** lose capacitance under DC bias. Where the value matters (regulator input and output, timing,
   filters), read the maker's bias curve at the working voltage; high-value parts in small cases lose most of theirs.
   Rating at twice the working voltage is enough only for small decoupling caps.
