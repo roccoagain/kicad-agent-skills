@@ -1,6 +1,6 @@
 ---
 name: kicad-placement
-description: "Decide where parts go on a KiCad 10 PCB: pin assignment from the floor plan, datasheet layout constraints, fitting passives at fine-pitch pins, assembly clearances, and comparing candidate placements with board.py score. Use when planning, reviewing or redoing a layout's placement. Moves are made with kicad-board-edit."
+description: "Decides where parts go on a KiCad 10 PCB: pin assignment from the floor plan, datasheet layout constraints, fitting passives at fine-pitch pins, assembly clearances, and comparing candidate placements with board.py score. Use when planning, reviewing or redoing a layout's placement. Moves are made with kicad-board-edit."
 ---
 
 # Where parts go
@@ -26,7 +26,7 @@ pitch. KiCad's stock courtyard widths:
 | Size | Courtyard width |
 |---|---|
 | 0201 | 0.70 mm |
-| 0402 | 0.92 mm |
+| 0402 | 0.92 mm (C), 0.94 mm (R) |
 | 0603 | 1.46 mm |
 
 So two 0402s fit at 1.27 mm pitch, but not at 0.65 or 0.5 mm. Each pad also needs room in front of it for its
@@ -42,12 +42,14 @@ track to escape.
 ## Doing it
 
 1. **One placement script** (`board.py`, `kicad-board-edit`) holding every part's `place(ref, x, y, rot)`, ending
-   with `auto_labels()` and `save()`. Rerun it whenever placement changes.
+   with `auto_labels()` and `save()`. Rerun it whenever placement changes. Adding parts to a finished board instead:
+   place only those, and pass them to `auto_labels([...])` so the other references stay put.
 2. **Positions from numbers:** take pad coordinates from `board.py pads`, not from a picture. Placing by eye is often
    0.3 mm off.
 3. **Compare candidates by number:** `b.score()` after the `place()` calls, without saving, prints airwire length,
-   crossings, courtyard overlaps and edge distances. Fewer crossings mean fewer vias; the parts with the most airwire
-   are the ones to move.
+   crossings, courtyard overlaps, edge distances and decoupling distances. Fewer crossings mean fewer vias; the
+   parts with the most airwire are the ones to move. Decoupling caps belong within about 2 mm of their IC's supply
+   pin (or the distance the datasheet gives); the list includes every cap to ground, so skip bulk and filter caps.
 4. **Look** at the result (`view.py pcb`, `kicad-view`), and record in the design notes any placement a later change
    must respect.
 5. **Next:** route (`kicad-routing`).

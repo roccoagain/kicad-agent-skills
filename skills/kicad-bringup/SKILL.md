@@ -1,13 +1,14 @@
 ---
 name: kicad-bringup
-description: "Write or update a board's bring-up and test plan (TEST_PLAN.md) from its KiCad schematic: visual checks, unpowered resistance readings computed from the netlist, current-limited first power, block-by-block function tests, and a per-board log. Use when a board is about to be ordered or assembled, when the user asks how to test or bring up a board, or after a schematic change that moves a reading."
+description: "Writes or updates a board's bring-up and test plan (TEST_PLAN.md) from its KiCad schematic: visual checks, unpowered resistance readings computed from the netlist, current-limited first power, block-by-block function tests, and a per-board log. Use when a board is about to be ordered or assembled, when the user asks how to test or bring up a board, or after a schematic change that moves a reading."
 ---
 
 # Write a bring-up plan
 
 The plan should catch an assembly fault before it destroys anything, and point to the faulty part when a reading is
 wrong. Compute every expected number from the schematic and datasheets, and show the working so the number can be
-recomputed after a change. Read the circuit (`kicad-view`: the sheet plots and the pin list) and the design notes first.
+recomputed after a change. Read the circuit (`kicad-view`: the sheet plots and the pin list) and the design notes
+first.
 
 ## TEST_PLAN.md layout
 
@@ -26,8 +27,8 @@ Name the fine-pitch parts and the pin pairs most likely to bridge, the polarised
 
 Check each rail to GND, and each pair of nets whose short would cause damage. Include adjacent fine-pitch pins that
 carry two different supplies, or a supply and ground. For each pair:
-- **Resistor-only paths:** give the number. Find it by following every resistor from each net's pins in the pin
-  list.
+- **Resistor-only paths:** give the number from `view.py ohms board.kicad_sch <net> [GND]` (`kicad-view`), which
+  solves the resistor network from the netlist and lists the other parts across the pair.
 - **Capacitors:** the reading starts low and climbs. Write "rises to > X" and "never below Y". X is well below the DC
   value. Y is the short limit, a few tens of Ω.
 - **IC supply pins:** datasheets rarely give the resistance, so write "not a short (> 100 Ω)" instead of a number you

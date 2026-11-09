@@ -22,13 +22,14 @@
 (rule "JLC copper to board edge"
 	(constraint edge_clearance (min 0.2mm)))
 
+# Holes over 6.3 mm are milled, not drilled: the recommended pass warns about them.
 (rule "JLC hole size"
 	(condition "A.Type == 'Pad' || A.Type == 'Via'")
-	(constraint hole_size (min 0.15mm) (max 6.3mm)))
+	(constraint hole_size (min 0.15mm)))
 
 (rule "JLC NPTH hole size"
 	(condition "A.Type == 'Pad' && A.Pad_Type == 'NPTH, mechanical'")
-	(constraint hole_size (min 0.5mm) (max 6.3mm)))
+	(constraint hole_size (min 0.5mm)))
 
 (rule "JLC via diameter"
 	(condition "A.Type == 'Via'")

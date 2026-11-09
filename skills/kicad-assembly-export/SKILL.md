@@ -1,6 +1,6 @@
 ---
 name: kicad-assembly-export
-description: "Make JLCPCB assembly files (BOM and CPL/pick-and-place) from a KiCad 10 board and check the order: LCSC numbers on every placed part, BOM and CPL agree, parts clear of the edge, rotations. Use when the user wants JLC to assemble a board, asks for a BOM, CPL, centroid or pick-and-place file, or adds LCSC numbers. For Gerbers, use kicad-fab-export."
+description: "Makes JLCPCB assembly files (BOM and CPL/pick-and-place) from a KiCad 10 board and checks the order: LCSC numbers on every placed part, BOM and CPL agree, parts clear of the edge, rotations. Use when the user wants JLC to assemble a board, asks for a BOM, CPL, centroid or pick-and-place file, or adds LCSC numbers. For Gerbers, use kicad-fab-export."
 ---
 
 # Export a board for JLCPCB assembly
@@ -24,9 +24,9 @@ From JLC's help center, read on 2026-11-05:
 
 ## Part numbers
 
-Each part JLC places needs an `LCSC` field (`C` + digits). Add it with `kicad-schematic`, then run `board.py sync` (`kicad-board-edit`).
-If the project already uses another field name, change `fields_ordered` in the jobset instead. To choose parts, use
-`kicad-part-selection`.
+Each part JLC places needs an `LCSC` field (`C` + digits). Add it with `kicad-schematic`, then run `board.py sync`
+(`kicad-board-edit`). If the project already uses another field name, change `fields_ordered` in the jobset instead. To
+choose parts, use `kicad-part-selection`.
 
 ## Setup, once per project
 
@@ -47,6 +47,9 @@ project.
   - keeps through-hole parts. If JLC won't fit them, set `exclude_footprints_with_th: true`.
 
 ## Export
+
+JLC cuts the stencil from the paste layers in the Gerber zip: add `F.Paste` (and `B.Paste` for bottom parts) to the
+fab jobset's layers (`kicad-fab-export`) before ordering assembly.
 
 Run this after the DRC gate and the Gerbers:
 
@@ -70,6 +73,9 @@ The y values come out negative. That's expected, and they match the Gerbers.
    lists parts in one file only, placed parts without an LCSC number, malformed numbers, and the sides used.
 
    - **No LCSC number:** JLC won't fit the part. Say whether the user will supply it or hand-solder it later.
+   - **Wrong part behind a number:** the check only sees that a number exists. JLC fits whatever the C-number names,
+     so look up each number's package, value and variant on lcsc.com and compare them with the row's Footprint and
+     Comment. A C-number for an 0603 on an 0402 footprint is built without complaint.
    - **Both sides listed:** the order needs Standard assembly.
 2. **Distance from the edge.** JLC wants part bodies at least 2.5 mm from the edge, unless rails are added. First add
    any parts JLC won't place to the exclusion list in a copy of `jlcpcb-assembly.kicad_dru`, then, with KiCad's Python
@@ -86,7 +92,8 @@ The y values come out negative. That's expected, and they match the Gerbers.
    | Quantity | 2–50 | 2–80,000 |
    | Rails, fiducials | not needed | needed (JLC adds them) |
 
-   JLC doesn't support IPC "most" (high-density) land patterns.
+   Use nominal (IPC-7351 density level B) land patterns, as KiCad's stock footprints do. Check JLC's assembly page
+   before using level A ("Most", the largest pads) or C ("Least", high density).
 4. **Rotations.** JLC defines each package's zero angle by its tape orientation, which sometimes differs from KiCad's,
    and JLC doesn't publish its convention.
    - Ask the user to check every polarised part in the placement preview on JLC's order page before paying: ICs,

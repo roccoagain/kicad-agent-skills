@@ -1,0 +1,60 @@
+[
+  {
+    "skills": ["kicad-schematic", "kicad-board-edit", "kicad-placement", "kicad-routing", "kicad-check", "kicad-view"],
+    "query": "Add a status LED with a series resistor from /OUT to GND on this board, about 2 mA at 5 V.",
+    "files": ["<testbed>/testbed.kicad_sch", "<testbed>/testbed.kicad_pcb", "<testbed>/testbed.kicad_pro"],
+    "expected_behavior": [
+      "Computes the resistor from (V - Vf) / I and states the LED forward voltage it assumed",
+      "Adds both parts with sch.py, knowing Device:LED pin 1 is the cathode, and saves with ERC showing no new errors",
+      "Runs board.py sync, places only the two new parts, and calls auto_labels with just those references",
+      "Routes them in a script that starts with remove_tracks(refs=[...]) and tries save(dry_run=True) first",
+      "Finishes with check.py PASS: DRC 0 errors, 0 unconnected, 0 parity",
+      "Looks at the result with view.py before reporting"
+    ]
+  },
+  {
+    "skills": ["kicad-bringup", "kicad-view", "kicad-design-review"],
+    "query": "Write the Stage 1 unpowered resistance checks for this board's TEST_PLAN.md.",
+    "files": ["<testbed>/testbed.kicad_sch"],
+    "expected_behavior": [
+      "Uses view.py ohms for each rail to GND (+5V to GND is 20 kΩ through R1 and R2)",
+      "Writes 'rises to > X' style entries where capacitors sit across the pair, and does not invent IC resistances",
+      "Covers the adjacent supply and ground pins of U1 (pins 4 and 5, 8 and 1) that could bridge",
+      "Shows the working for each number so it can be recomputed"
+    ]
+  },
+  {
+    "skills": ["kicad-check", "kicad-fab-export", "kicad-assembly-export"],
+    "query": "Is this board ready to order from JLC with assembly? Make the order files.",
+    "files": ["<testbed>/testbed.kicad_pro"],
+    "expected_behavior": [
+      "Runs check.py and reports its result, including the date the JLC values were read",
+      "Adds F.Paste to the fab jobset because JLC assembles the board, runs the DRC gate, then the jobset",
+      "Lists the zip and checks the file names and drill sizes",
+      "Runs the assembly jobset, jlc_asm.py cpl and check, and says that each LCSC number's package and value must be looked up, since the check only sees that a number exists",
+      "Tells the user to check rotations of the op-amp and connector in JLC's preview"
+    ]
+  },
+  {
+    "skills": ["kicad-design-review", "kicad-view", "kicad-simulate"],
+    "query": "Review this circuit: can the IN pin take 12 V by mistake without damage?",
+    "files": ["<testbed>/testbed.kicad_sch"],
+    "expected_behavior": [
+      "Reads the LM358's absolute maximum input voltage from its datasheet and cites it",
+      "Finds that IN goes straight to U1 pin 3 with no series resistance, and judges 12 V from the datasheet rather than assuming inputs must stay inside the rails (TI's LM358 allows inputs up to 32 V whatever the supply), including the unpowered case",
+      "Runs view.py decoupling and reports C2 on U1's +5V pin",
+      "Proposes a fix (series resistor and clamp) for the user to decide, with numbers"
+    ]
+  },
+  {
+    "skills": ["kicad-schematic"],
+    "query": "Add the second half of a dual op-amp U3 (LM358) as a unity-gain buffer on /VMID.",
+    "files": ["<project>.kicad_sch with U3 unit 1 already placed"],
+    "expected_behavior": [
+      "Places unit 2 with add('Amplifier_Operational:LM358', 'U3', at, unit=2) instead of a new reference",
+      "Wires output to inverting input and labels the non-inverting input /VMID",
+      "Checks the power unit (unit 3) is placed, or adds it, so ERC sees the supply pins",
+      "Confirms the connections with view.py pins or expect"
+    ]
+  }
+]

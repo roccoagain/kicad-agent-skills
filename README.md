@@ -17,7 +17,7 @@ agent that reads the open [Agent Skills](https://agentskills.io) format, such as
 | `kicad-schematic` | Draw and edit the schematic with `sch.py`; ERC and lint on every save |
 | `kicad-library` | Make and check symbols and footprints (`ipc_land.py`, `pinpad.py`) |
 | `kicad-part-selection` | Choose orderable parts, JLC Basic/Extended, BOM fields |
-| `kicad-view` | Cropped plots, pin nets and revision diffs with `view.py` |
+| `kicad-view` | Cropped plots, pin nets, resistance between nets, connection and decoupling checks, revision diffs with `view.py` |
 | `kicad-placement` | Place parts; compare candidates with `board.py score` |
 | `kicad-routing` | Route by hand: net classes, widths, clearances, pours |
 | `kicad-board-edit` | Board, sync from schematic, placement, tracks, vias, pours with `board.py` |
@@ -32,7 +32,9 @@ agent that reads the open [Agent Skills](https://agentskills.io) format, such as
 
 - KiCad 10 (tested with 10.0.5 on macOS).
 - Python 3 for `sch.py`, `view.py`, `check.py` and the other helpers; KiCad's bundled Python for `board.py`.
-- `pdftoppm` (poppler) for pictures.
+- poppler (`pdftoppm`, `pdfinfo`) for pictures.
+- For checking symbols and footprints as pictures: `rsvg-convert` (librsvg).
+- For rendering Gerbers: `uv` (runs pygerber without installing it).
 - For simulation: `ngspice`.
 
 ## Install
@@ -45,6 +47,20 @@ Update with `npx skills update -g`. To edit the skills, symlink each folder in `
 `~/.agents/skills/` instead.
 
 Other skill sets may share some of these names, so install only one set.
+
+## Testing
+
+```bash
+python3 tests/smoke.py [DIR]
+```
+
+builds a small project from nothing with the scripts (schematic with a multi-unit op-amp, board, placement, a hand
+route, pours), runs every checker and both jobsets, and prints PASS or FAIL per step. Without DIR it works in a
+temporary folder. Run it after changing a script or upgrading KiCad.
+
+`tests/evals.json` holds task-level evaluations in Anthropic's format (query, skills, expected behaviour) against
+the smoke test's project. Run them by giving each query to a fresh agent with the skills installed and comparing
+what it does with the expected behaviour, with each model you plan to use.
 
 ## Limits
 

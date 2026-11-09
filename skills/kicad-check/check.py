@@ -69,8 +69,8 @@ def main(argv):
     rules_dir = argv[argv.index("--rules-dir") + 1] if "--rules-dir" in argv else HERE
     with tempfile.TemporaryDirectory() as d:
         if os.path.exists(sch):
-            erc = run_json([K, "sch", "erc", "--format", "json", "--severity-all", "-o", f"{d}/erc.json", sch],
-                           f"{d}/erc.json")
+            erc = run_json([K, "sch", "erc", "--format", "json", "--severity-error", "--severity-warning",
+                            "-o", f"{d}/erc.json", sch], f"{d}/erc.json")
             vs = [v for s in erc.get("sheets", []) for v in s.get("violations", [])]
             show("ERC", vs)
             failed |= any(v["severity"] == "error" for v in vs)
@@ -85,8 +85,8 @@ def main(argv):
         print(f"no board ({os.path.basename(pcb)}): DRC and JLC passes skipped")
         return finish(argv, report, failed)
     with tempfile.TemporaryDirectory() as d:
-        drc = run_json([K, "pcb", "drc", "--format", "json", "--severity-all", "--refill-zones", "--schematic-parity",
-                        "-o", f"{d}/drc.json", pcb], f"{d}/drc.json")
+        drc = run_json([K, "pcb", "drc", "--format", "json", "--severity-error", "--severity-warning", "--refill-zones",
+                        "--schematic-parity", "-o", f"{d}/drc.json", pcb], f"{d}/drc.json")
         vs, un, par = drc.get("violations", []), drc.get("unconnected_items", []), drc.get("schematic_parity", [])
         show("DRC", vs)
         print(f"  unconnected: {len(un)}, schematic parity: {len(par)}")
@@ -107,8 +107,8 @@ def main(argv):
                 if os.path.exists(pro):
                     shutil.copy(pro, f"{w}/{base}.kicad_pro")
                 shutil.copy(os.path.join(rules_dir, f"jlcpcb-{kind}-{level}.kicad_dru"), f"{w}/{base}.kicad_dru")
-                j = run_json([K, "pcb", "drc", "--format", "json", "--severity-all", "--refill-zones",
-                              "-o", f"{w}/drc.json", f"{w}/{base}.kicad_pcb"], f"{w}/drc.json")
+                j = run_json([K, "pcb", "drc", "--format", "json", "--severity-error", "--severity-warning",
+                              "--refill-zones", "-o", f"{w}/drc.json", f"{w}/{base}.kicad_pcb"], f"{w}/drc.json")
                 new = [v for v in j.get("violations", []) if key(v) not in seen and v["type"] not in IGNORE]
                 if level == "limits":
                     for v in new:
@@ -119,6 +119,10 @@ def main(argv):
                         v["severity"] = "warning"
                 show(f"JLC {kind} {level}", new)
                 report[f"jlc_{level}"] = new
+            dru = open(os.path.join(rules_dir, f"jlcpcb-{kind}-limits.kicad_dru")).read()
+            read = re.search(r"read (\d{4}-\d\d-\d\d)", dru)
+            print(f"  JLC values as read on {read.group(1) if read else '(no date in the rule file)'}; "
+                  "re-check them on JLC's site before an order")
         m = re.search(r"\(thickness ([\d.]+)\)", open(pcb).read())
         print(f"Board: {kind if jlc else ''} thickness {m.group(1) if m else '?'} mm "
               "(size, slots, mask, silk legibility: see the skill's checklist)")

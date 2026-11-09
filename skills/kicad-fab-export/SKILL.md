@@ -1,6 +1,6 @@
 ---
 name: kicad-fab-export
-description: "Export Gerbers, drill files and the JLCPCB fab zip from a KiCad 10 board, after a DRC check, and verify the files. Also exports STEP and DXF files for enclosures. Use when the user asks for Gerbers, a fab zip, files to order a PCB, or a STEP/DXF, or after a board change in a project that keeps its fab zip. For the BOM and CPL files JLC assembly needs, use kicad-assembly-export."
+description: "Exports Gerbers, drill files and the JLCPCB fab zip from a KiCad 10 board, after a DRC check, and verifies the files. Also exports STEP and DXF files for enclosures. Use when the user asks for Gerbers, a fab zip, files to order a PCB, or a STEP/DXF, or after a board change in a project that keeps its fab zip. For the BOM and CPL files JLC assembly needs, use kicad-assembly-export."
 ---
 
 # Export a board for JLCPCB
@@ -41,8 +41,9 @@ Commit the jobset with the project.
 Keep the DRC gate as a separate command. In KiCad 10.0, a failed DRC job inside the jobset still lets the zip be
 written.
 
-If DRC reports errors, fix them (`kicad-check`). Export anyway only if the user says so. This gate checks only the
-project's own rules, so also run `kicad-check`'s JLC passes before ordering.
+If DRC reports errors, fix them (`kicad-check`). Export anyway only if the user says so. This gate stops only on
+errors, and only for the project's own rules: run `kicad-check` first, whose warnings (dangling tracks, silk over
+copper) and JLC passes it doesn't cover.
 
 ## Check the output
 
@@ -54,7 +55,8 @@ project's own rules, so also run `kicad-check`'s JLC passes before ordering.
    The number of copper files must match the layer count.
 2. **Holes:** `grep -h '^T[0-9]*C' <unzipped>/*.drl` lists the drill diameters in mm. Compare the smallest with the
    fab's minimum.
-3. **Render the Gerbers themselves, not KiCad's plot.** Export mistakes only show up in the files:
+3. **Render the Gerbers themselves, not KiCad's plot.** Export mistakes only show up in the files. This needs
+   `uv` (`brew install uv` or astral.sh/uv), which fetches pygerber on the fly:
 
    ```bash
    mkdir -p <scratch>/gbr/in <scratch>/gbr/out && unzip -q -o <zip> -d <scratch>/gbr/in && cd <scratch>/gbr

@@ -1,6 +1,6 @@
 ---
 name: kicad-check
-description: "Run ERC and DRC (with schematic parity) on a KiCad 10 design, then check the board against JLCPCB's manufacturing limits, including what DRC can't check (size, thickness, slots, mask, silk). Use after any schematic or board change, before committing, when there are ERC or DRC errors, or when the user asks whether a board is ready to order or manufacturable."
+description: "Runs ERC and DRC (with schematic parity) on a KiCad 10 design, then checks the board against JLCPCB's manufacturing limits, including what DRC can't check (size, thickness, slots, mask, silk). Use after any schematic or board change, before committing, when there are ERC or DRC errors, or when the user asks whether a board is ready to order or manufacturable."
 ---
 
 # Check a KiCad design
@@ -18,6 +18,9 @@ check, ending in PASS or FAIL:
    the board). It reports only findings the project's DRC didn't:
    - **Limits pass:** an error. JLC can't make the board as drawn.
    - **Recommended pass:** a warning. JLC builds it, but it may print poorly or yield worse.
+
+Findings excluded in KiCad (stored in the `.kicad_pro`) aren't reported. The JLC passes end by printing the date
+their values were read.
 
 Options:
 - `--no-jlc`: run just ERC and DRC.

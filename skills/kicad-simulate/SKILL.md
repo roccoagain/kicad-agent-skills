@@ -1,6 +1,6 @@
 ---
 name: kicad-simulate
-description: "Simulate part of a KiCad 10 schematic with ngspice from the command line: frequency response, -3 dB points, gain, clipping, transients, start-up and fault currents, using vendor models or ideal stand-ins. Use when a design decision depends on a frequency response, transient, headroom or power figure that is hard to work out by hand, or to back up a kicad-design-review finding."
+description: "Simulates part of a KiCad 10 schematic with ngspice from the command line: frequency response, -3 dB points, gain, clipping, transients, start-up and fault currents, using vendor models or ideal stand-ins. Use when a design decision depends on a frequency response, transient, headroom or power figure that is hard to work out by hand, or to back up a kicad-design-review finding."
 ---
 
 # Simulate a circuit

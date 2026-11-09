@@ -1,6 +1,6 @@
 ---
 name: kicad-routing
-description: "Route a KiCad 10 board by hand with board.py: net classes and rules, track width for current, clearance for voltage, ground pours and return paths, differential pairs and impedance, then DRC until nothing is unrouted. Use when routing or re-routing, choosing track widths or net classes, adding pours, or reviewing routing. Edits are made with kicad-board-edit."
+description: "Routes a KiCad 10 board by hand with board.py: net classes and rules, track width for current, clearance for voltage, ground pours and return paths, differential pairs and impedance, then DRC until nothing is unrouted. Use when routing or re-routing, choosing track widths or net classes, adding pours, or reviewing routing. Edits are made with kicad-board-edit."
 ---
 
 # Route a board
@@ -46,11 +46,12 @@ Outer layers at a 10 °C rise, from IPC-2221 (`I = 0.048 · ΔT^0.44 · A^0.725`
 - **Inner layers:** about 2.6× the width at the same copper weight. JLC's inner copper is 0.5 oz, so take about 5×
   the 1 oz column.
 - **Voltage drop:** 1 oz copper is about 0.5 mΩ per square (0.3 × 30 mm ≈ 50 mΩ).
-- **Vias:** a 0.3 mm via carries about 1 A.
+- **Vias:** a 0.3 mm drill with standard (about 20 µm) plating carries about 1 A.
 
 ## Clearance for voltage
 
-Below 30 V the fab minimum is enough. Above it, IPC-2221 B2 (external, uncoated):
+Below 30 V the fab minimum is enough. Above it, IPC-2221 B2 (external, uncoated). The voltages are DC or AC peak:
+230 VAC is 325 V peak, the 2.5 mm row.
 
 | Voltage | Clearance |
 |---|---|
@@ -58,13 +59,19 @@ Below 30 V the fab minimum is enough. Above it, IPC-2221 B2 (external, uncoated)
 | 151–300 V | 1.25 mm |
 | 301–500 V | 2.5 mm |
 
-For mains, ask which safety standard applies (such as IEC 62368-1). Put those nets in their own class so DRC enforces
-the clearance.
+IPC-2221 is functional spacing only. For mains or anything a user can touch, the safety standard that applies (such as
+IEC 62368-1) sets creepage and clearance, usually much larger: ask which. Put those nets in their own class so DRC
+enforces the clearance.
 
 ## Pours
 
-- **Pad connections:** thermal reliefs for hand soldering; `zone(..., pads="solid")` for reflow. A "starved
-  thermal" error on a pad boxed in by tracks: connect it with a track, or pour solid.
+- **Pad connections:** keep thermal reliefs (the default). A solid connection on one pad of an 0402/0201 tombstones
+  it in reflow, and through-hole pads tied solid to a pour are hard to hand-solder, which is how JLC fits through-hole
+  parts. `zone(..., pads="solid")` suits a pour that only meets exposed or power pads. A "starved thermal" error on
+  a pad boxed in by tracks: connect it with a track or a via.
+- **Boxed-in pads:** a pour only reaches a pad through a gap at least its minimum width; a ground pad hemmed in by
+  tracks stays unconnected even when poured solid (DRC lists it). Give each SMD ground pad its own `gnd_via()` to
+  the other layer's pour as you route, rather than relying on the top pour.
 - **Dead copper:** keep island removal on (`island_removal_mode 0`).
 - **After filling,** look at each copper layer (`view.py pcb --layers B.Cu`): a route can pass DRC and still cut a
   pour into islands or leave a fast signal without ground under it.
@@ -72,11 +79,15 @@ the clearance.
 ## Differential pairs and impedance
 
 - **Width and gap:** from the fab's impedance calculator for the stackup you will order (JLC has one).
-- **2-layer 1.6 mm boards:** 90 Ω needs impractically wide tracks. USB full-speed only needs short and matched;
-  anything faster needs 4 layers.
+- **2-layer 1.6 mm boards:** with the reference plane about 1.5 mm below, a 90 Ω microstrip pair is impractically
+  wide; route it as coplanar waveguide with ground (CPWG) instead. USB full-speed only needs short and matched; short
+  USB 2.0 high-speed runs work as CPWG; longer or faster links want 4 layers.
 - **Length:** compare a pair by summing `t.GetLength()` (mm via `pcbnew.ToMM`) over each net's tracks, in KiCad's
   Python. Via barrels aren't included.
-- **Nearby pour** lowers impedance: keep it 3 track widths away, or design the line as coplanar waveguide.
+- **Nearby pour** lowers impedance: keep it at least twice the dielectric height away (about 3 mm on a 1.6 mm 2-layer
+  board), or design the line as CPWG with that pour as part of it.
+- **Reference copper:** no fast signal may cross a gap or slot in the ground under it. DRC can't see this; look at the
+  other layer with `view.py` along each fast net.
 
 ## Pin swaps
 
@@ -92,8 +103,10 @@ units, same-function GPIOs, order-free connector pins). Confirm in the datasheet
 2. **One routing script**, in a fresh process after placement: `connect` pad to pad (adding waypoints where the path
    must turn), `track` where every corner matters, vias where a net changes layer, `zone(...)` last.
 3. **Iterate on the script, not the board:** start it with `remove_tracks(nets=["*"]); remove_zones()`, so a rerun
-   replaces the whole route. Moving a part a few tenths of a mm often beats contorting a track: change the placement
-   script and rerun both.
+   replaces the whole route, and end it with `save(dry_run=True)` until DRC is clean, then `save()`. To route only
+   new parts on a finished board, start with `remove_tracks(refs=[...])` for those parts instead, so a rerun
+   doesn't duplicate vias or wipe the rest. Moving a part
+   a few tenths of a mm often beats contorting a track: change the placement script and rerun both.
 4. **Record** in the design notes any constraint a later change must respect.
 
 Done when DRC reports no errors, no unconnected items and no parity issues.

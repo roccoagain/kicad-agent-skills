@@ -1,6 +1,6 @@
 ---
 name: kicad-library
-description: "Create or fix KiCad 10 symbols and footprints for parts that aren't in KiCad's libraries: land patterns from the datasheet or IPC-7351, pin 1, courtyard and silk, 3D models, pin stacks, and symbol pins matched to footprint pads. Also sets up project library tables. Use when a part needs a new symbol or footprint, or a footprint might be wrong. To place an existing symbol, use kicad-schematic."
+description: "Creates or fixes KiCad 10 symbols and footprints for parts that aren't in KiCad's libraries: land patterns from the datasheet or IPC-7351, pin 1, courtyard and silk, 3D models, pin stacks, and symbol pins matched to footprint pads. Also sets up project library tables. Use when a part needs a new symbol or footprint, or a footprint might be wrong. To place an existing symbol, use kicad-schematic."
 ---
 
 # Symbols and footprints
@@ -54,7 +54,8 @@ A footprint file looks like this: `(footprint "Name" (version 20260206) (generat
 - **Exposed pad:**
   - Number it as the datasheet does.
   - Split the paste into a grid covering 50–70 % of the pad.
-  - Add thermal vias if the datasheet asks for them.
+  - Add thermal vias if the datasheet asks for them. Vias in a pad wick solder unless tented or plugged (JLC plugs
+    for a fee); note the choice for the order.
 
 **Layers**
 - **F.Fab:** the body at its real size, drawn with 0.1 mm lines, plus a pin-1 mark and `${REFERENCE}`.
@@ -63,7 +64,8 @@ A footprint file looks like this: `(footprint "Name" (version 20260206) (generat
   - a pin-1 mark that stays visible once the part is placed;
   - 0.12 mm lines, as KiCad uses (JLC prefers 0.15 mm).
 - **F.CrtYd:**
-  - a closed outline 0.25 mm outside the body and pads (0.15 mm for parts smaller than 0603);
+  - a closed outline 0.25 mm outside the body and pads (0.15 mm for parts smaller than 0603, 0.5 mm for connectors,
+    1.0 mm for BGAs);
   - points on a 0.01 mm grid;
   - 0.05 mm lines.
 
@@ -132,7 +134,8 @@ A footprint file looks like this: `(footprint "Name" (version 20260206) (generat
    "$K" sym export svg -o <scratch>/svg <lib>.kicad_sym
    ```
 
-   The output folder must already exist. Convert each SVG to PNG with `rsvg-convert -w 1000 -b white x.svg -o x.png`.
+   The output folder must already exist. Convert each SVG to PNG with `rsvg-convert -w 1000 -b white x.svg -o x.png`
+   (librsvg: `brew install librsvg` or `apt install librsvg2-bin`).
    Check pin 1, the pad shapes and the outline.
 3. **Numbers.** Make a short table comparing the file with the datasheet:
    - pitch;
@@ -145,8 +148,8 @@ A footprint file looks like this: `(footprint "Name" (version 20260206) (generat
    - Both lists must be empty, unless a pad is deliberately unconnected. If so, say which.
    - Then check each pin's function against the pinout for this exact package. Other packages of the same part often
      number their pins differently.
-5. **On the board.** After `board.py sync` (`kicad-board-edit`), DRC reports any courtyard overlaps, clearance problems, and
-   `lib_footprint_mismatch`.
+5. **On the board.** After `board.py sync` (`kicad-board-edit`), DRC reports any courtyard overlaps, clearance
+   problems, and `lib_footprint_mismatch`.
 
 ## Changing a part that's already in use
 

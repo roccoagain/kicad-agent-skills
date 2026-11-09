@@ -13,13 +13,16 @@
     b.zone("GND", ["F.Cu", "B.Cu"])                          # pour over the board outline
     b.set_pad_net("J2", "2", "/NRST")                        # after a pin swap made in the schematic
     b.remove_tracks(nets=["/SDA"], region=(120, 110, 135, 120))
+    b.remove_tracks(refs=["R3", "D1"])                       # the copper hanging off these parts' pads
     b.label("C3", 119.6, 113.2)                              # silkscreen reference; or b.auto_labels()
     b.score()                                                # placement metrics, before or instead of saving
     b.save()                                                 # writes, refills zones, runs DRC with parity
+    b.save(dry_run=True)                                     # or: the same DRC on a temporary copy, file untouched
 
 Command line, with KiCad's bundled Python ("$KPY" -I board.py ...):
     board.py pads board.kicad_pcb [REF ...]                  # pad positions and nets
-    board.py score board.kicad_pcb [--skip GND]              # airwires, crossings, courtyard overlaps, edge
+    board.py tracks board.kicad_pcb [NET ...]                # every track's ends, layer and width, and every via
+    board.py score board.kicad_pcb [--skip GND]              # airwires, crossings, overlaps, edge, decoupling
     board.py sync board.kicad_pcb [x y]                      # bring the board in line with the schematic
     board.py new board.kicad_pcb W H [--holes M3]            # new board with a rounded outline at (100, 100)
     board.py rules board.kicad_pro [--power +5V,+3V3,GND] [--power-width 0.5]   # JLC minimums, net classes
@@ -39,6 +42,7 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -109,6 +113,13 @@ def load_footprint(fpid, proj):
     return fp
 
 
+def _copy_project(src, dst, skip=None):
+    """Copy the project folder into dst (sheets and libraries in subfolders included), leaving out version control,
+    backups, lock files, fab output and 3D models, which DRC doesn't read."""
+    shutil.copytree(src, dst, dirs_exist_ok=True, ignore=shutil.ignore_patterns(
+        ".git", ".history", "*-backups", "fab", "~*.lck", "*.step", "*.stp", "*.wrl", *([skip] if skip else [])))
+
+
 # ----------------------------------------------------------------------------- DRC
 def drc(board_path, refill=True, parity=True, rules=None, show=15):
     """Run KiCad's DRC (refilling and saving zones by default); print a summary; return the JSON report.
@@ -124,7 +135,7 @@ def drc(board_path, refill=True, parity=True, rules=None, show=15):
             open(os.path.join(d, stem + ".kicad_dru"), "w").write(open(rules).read())
             target, refill = os.path.join(d, stem + ".kicad_pcb"), False
         out = os.path.join(d, "drc.json")
-        cmd = [kicad_cli(), "pcb", "drc", "--format", "json", "--severity-all", "-o", out]
+        cmd = [kicad_cli(), "pcb", "drc", "--format", "json", "--severity-error", "--severity-warning", "-o", out]
         cmd += ["--refill-zones", "--save-board"] if refill else []
         cmd += ["--schematic-parity"] if parity and not rules else []
         r = subprocess.run(cmd + [target], capture_output=True, text=True)
@@ -255,20 +266,21 @@ class Board:
         if x is not None:
             t.SetPosition(V(x, y))
 
-    def auto_labels(self, refs=None, gap=0.25):
+    def auto_labels(self, refs=None, gap=0.25):         # gap: label box to courtyard, enough to read as separate
         """Move each reference (default: all visible ones) beside its courtyard, on the first side clear of pads,
         other labels, holes and the board edge. Returns the refs that found no spot (place those with label())."""
         def bb(box, m=0.0):
-            return (TOMM(box.GetLeft()) - m, TOMM(box.GetTop()) - m, TOMM(box.GetRight()) + m, TOMM(box.GetBottom()) + m)
+            return (TOMM(box.GetLeft()) - m, TOMM(box.GetTop()) - m, TOMM(box.GetRight()) + m,
+                    TOMM(box.GetBottom()) + m)
 
         def hit(a, c):
             return a[0] < c[2] and c[0] < a[2] and a[1] < c[3] and c[1] < a[3]
         refs = [r for r in (refs or self.fps) if self.fps[r].Reference().IsVisible()]
-        blocks = [bb(p.GetBoundingBox(), 0.15) for fp in self.fps.values() for p in fp.Pads()]
+        blocks = [bb(p.GetBoundingBox(), 0.15) for fp in self.fps.values() for p in fp.Pads()]   # JLC silk-to-pad
         blocks += [bb(self.fps[r].Reference().GetBoundingBox(), 0.1) for r in self.fps
                    if r not in refs and self.fps[r].Reference().IsVisible()]
         e = self._edge()
-        edge = (e[0] + 0.5, e[1] + 0.5, e[2] - 0.5, e[3] - 0.5)
+        edge = (e[0] + 0.5, e[1] + 0.5, e[2] - 0.5, e[3] - 0.5)   # keep silk clear of the routed edge
         failed = []
         for ref in sorted(refs, key=lambda r: self.position(r)[:2]):
             fp, t = self.fps[ref], self.fps[ref].Reference()
@@ -280,7 +292,7 @@ class Board:
             spots = {"above": (cx, tp - h / 2 - gap), "below": (cx, bt + h / 2 + gap),
                      "right": (r + w / 2 + gap, cyy), "left": (l - w / 2 - gap, cyy)}
             order = ["right", "left", "above", "below"] if (bt - tp) > (r - l) else ["above", "below", "right", "left"]
-            for step in (0, 0.4, 0.8, 1.2):
+            for step in (0, 0.4, 0.8, 1.2):                 # then slide outwards, up to ~one text height
                 ok = None
                 for side in order:
                     x, y = spots[side]
@@ -307,11 +319,14 @@ class Board:
             ns = json.load(open(os.path.splitext(self.path)[0] + ".kicad_pro"))["net_settings"]
         except (OSError, ValueError, KeyError):
             return 0.25
-        widths = {c["name"]: c.get("track_width", 0.25) for c in ns.get("classes", [])}
-        name = (ns.get("netclass_assignments") or {}).get(net)
-        name = name or next((p["netclass"] for p in ns.get("netclass_patterns") or []
-                             if fnmatch.fnmatchcase(net, p["pattern"])), "Default")
-        return widths.get(name, widths.get("Default", 0.25))
+        classes = {c["name"]: c for c in ns.get("classes", [])}
+        names = (ns.get("netclass_assignments") or {}).get(net) or [
+            p["netclass"] for p in ns.get("netclass_patterns") or [] if fnmatch.fnmatchcase(net, p["pattern"])]
+        names = [names] if isinstance(names, str) else [n for n in names if n in classes]
+        if not names:
+            return classes.get("Default", {}).get("track_width", 0.25)
+        best = min(names, key=lambda n: classes[n].get("priority", 0))   # KiCad: the lowest priority number wins
+        return classes[best].get("track_width", classes.get("Default", {}).get("track_width", 0.25))
 
     def _xy(self, p):
         return self.pad(*p) if isinstance(p[0], str) else (float(p[0]), float(p[1]))
@@ -375,8 +390,8 @@ class Board:
     def zone(self, net, layers=("F.Cu", "B.Cu"), outline=None, clearance=0.3, min_width=0.25, priority=0,
              thermal_gap=0.5, spoke=0.5, pads="thermal"):
         """A copper pour on net, over outline [(x, y), ...] (default: the board outline's bounding box; the fill
-        keeps its edge clearance by itself). pads="solid" joins pads without thermal reliefs: fine for reflow,
-        and it avoids "starved thermal" errors on pads boxed in by tracks; keep "thermal" for hand soldering.
+        keeps its edge clearance by itself). pads="thermal" (default) uses reliefs; pads="solid" joins pads directly,
+        which suits exposed and power pads but tombstones small chip parts and makes through-hole pads hard to solder.
         save() refills it."""
         self._net(net)
         self._zones.append((net, [self._layer(l) for l in layers], outline, clearance, min_width, priority,
@@ -388,9 +403,16 @@ class Board:
         self._net(net)
         self._net_changes.append((ref, str(num), net))
 
-    def remove_tracks(self, nets=None, layers=None, region=None, vias=True, tracks=True):
+    def remove_tracks(self, nets=None, layers=None, region=None, vias=True, tracks=True, refs=None):
         """Remove tracks/vias matching every filter given: nets (names, "*" = all), layers, region (x0, y0, x1, y1)
-        with both ends inside. Needs at least one filter."""
+        with both ends inside. Needs at least one filter. Or refs=["R3", ...]: the tracks and vias hanging off
+        those parts' pads, followed along the copper up to the next pad, branch or dead end (so a script that
+        routes a few parts on a finished board can undo exactly its own work before a rerun)."""
+        if refs:
+            for r in refs:
+                self._fp(r)
+            self._removes.append(("refs", list(refs)))
+            return
         if not (nets or layers or region):
             raise ValueError("remove_tracks needs a filter; nets=['*'] means every net")
         self._removes.append((nets, layers, region, vias, tracks))
@@ -445,7 +467,7 @@ class Board:
                 self._shapes.append(("arc", c, s, width))
 
     # ------------------------------------------------------------------ placement metrics
-    def score(self, skip=None, margin=0.5, show=6):
+    def score(self, skip=None, margin=0.5, show=6):     # margin: courtyard-to-edge distance worth reporting
         """Placement metrics from pad centres, reflecting place() calls so far: airwire length (a minimum spanning
         tree per net), airwire crossings between nets, courtyard overlaps, parts within margin of the board edge
         (negative: past it), and how much of the board the courtyards cover. Nets in skip, and nets with a pour,
@@ -502,7 +524,7 @@ class Board:
                         not cys[r1].BBox().Intersects(cys[r2].BBox()):
                     continue
                 x = pcbnew.SHAPE_POLY_SET(cys[r1]); x.BooleanIntersection(cys[r2])
-                if x.Area() / 1e12 > 0.001:
+                if x.Area() / 1e12 > 0.001:                 # nm² -> mm²; ignore touching edges
                     overlaps.append((r1, r2, round(x.Area() / 1e12, 3)))
         e = self._edge()
         edge = []
@@ -512,6 +534,7 @@ class Board:
                     e[3] - TOMM(bb.GetBottom()))
             if d < margin:
                 edge.append((r, round(d, 2)))
+        decoupling = self._decoupling()
         area = (e[2] - e[0]) * (e[3] - e[1])
         cover = sum(c.Area() for c in cys.values() if c) / 1e12 / area if area else 0
         total = sum(per_net.values())
@@ -529,8 +552,38 @@ class Board:
             print("  overlaps: " + ", ".join(f"{a}/{b} {s:g} mm²" for a, b, s in overlaps))
         if edge:
             print(f"  within {margin:g} mm of the edge: " + ", ".join(f"{r} {d:g}" for r, d in sorted(edge)))
+        if decoupling:
+            print("  decoupling, farthest first (cap pad to nearest IC pad on its rail): " + ", ".join(
+                f"{c} {rail} {ic} {d:.1f}" for c, rail, ic, d in decoupling[:show]))
         return dict(airwire=total, nets=per_net, parts=per_part, crossings=crossings, overlaps=overlaps,
-                    edge=edge, cover=cover)
+                    edge=edge, cover=cover, decoupling=decoupling)
+
+    def _decoupling(self):
+        """[(cap, rail, "U2.4", mm)] for every capacitor between a ground and another net: the distance from its rail
+        pad to the nearest IC pad (U*/IC*) on that rail, farthest first."""
+        def ground(n):
+            return bool(re.search(r"GND|VSS|^0$", n.upper()))
+        ic_pads = {}
+        for ref, fp in self.fps.items():
+            if re.match(r"(U|IC)\d", ref):
+                for p in fp.Pads():
+                    q = p.GetPosition()
+                    ic_pads.setdefault(p.GetNetname(), []).append((f"{ref}.{p.GetNumber()}", (TOMM(q.x), TOMM(q.y))))
+        out = []
+        for ref, fp in self.fps.items():
+            pads = list(fp.Pads())
+            if not re.match(r"C\d", ref) or len(pads) != 2:
+                continue
+            nets = [p.GetNetname() for p in pads]
+            if sum(map(ground, nets)) != 1 or not all(nets):
+                continue
+            rp = pads[0] if ground(nets[1]) else pads[1]
+            q = rp.GetPosition()
+            near = [(math.dist((TOMM(q.x), TOMM(q.y)), xy), name) for name, xy in ic_pads.get(rp.GetNetname(), [])]
+            if near:
+                d, name = min(near)
+                out.append((ref, rp.GetNetname(), name, round(d, 2)))
+        return sorted(out, key=lambda t: -t[3])
 
     # ------------------------------------------------------------------ save
     def _selected_removals(self):
@@ -538,7 +591,7 @@ class Board:
         for t in self.board.GetTracks():
             is_via = t.GetClass() == "PCB_VIA"
             for rm in self._removes:
-                if rm[0] in ("zones", "outline", "texts"):
+                if rm[0] in ("zones", "outline", "texts", "refs"):
                     continue
                 nets, layers, region, vias, tracks = rm
                 if (is_via and not vias) or (not is_via and not tracks):
@@ -561,11 +614,63 @@ class Board:
                 out += [d for d in self.board.GetDrawings() if d.GetLayer() == pcbnew.Edge_Cuts]
             elif rm[0] == "texts":
                 out += [d for d in self.board.GetDrawings() if d.GetClass() == "PCB_TEXT"]
+            elif rm[0] == "refs":
+                out += [t for t in self._hanging_copper(rm[1]) if all(t is not o for o in out)]
         return out
 
-    def save(self, check=True):
+    def _hanging_copper(self, refs):
+        """Tracks and vias reached from the pads of refs, following segment ends and vias, stopping at any pad, at a
+        branch (more than one way on) and at dead ends."""
+        def key(p):
+            return (round(TOMM(p.x), 3), round(TOMM(p.y), 3))
+        items = list(self.board.GetTracks())
+        segs = [t for t in items if t.GetClass() != "PCB_VIA"]
+        vias = [t for t in items if t.GetClass() == "PCB_VIA"]
+        pads = list(self.board.GetPads())
+
+        def on_pad(point, layer):
+            return any(p.IsOnLayer(layer) and p.HitTest(point) for p in pads)
+
+        def at(k, layer, skip):
+            """Items joined at point k: segments on layer (any layer if None) ending there, and vias there."""
+            out = [s_ for s_ in segs if (layer is None or s_.GetLayer() == layer)
+                   and k in (key(s_.GetStart()), key(s_.GetEnd()))]
+            out += [v for v in vias if key(v.GetPosition()) == k]
+            return [o for o in out if all(o is not x for x in skip)]
+        found, todo = [], []
+        for ref in refs:
+            for pad in self._fp(ref).Pads():
+                for s_ in segs:
+                    if all(s_ is not f for f in found) and pad.IsOnLayer(s_.GetLayer()):
+                        for end, other in ((s_.GetStart(), s_.GetEnd()), (s_.GetEnd(), s_.GetStart())):
+                            if pad.HitTest(end):
+                                found.append(s_); todo.append((key(other), s_.GetLayer(), other))
+                                break
+        while todo:
+            k, layer, point = todo.pop()
+            if point is not None and on_pad(point, layer):
+                continue
+            nxt = at(k, layer, found)
+            if len(nxt) != 1:
+                continue
+            item = nxt[0]
+            found.append(item)
+            if item.GetClass() == "PCB_VIA":
+                more = at(k, None, found)
+                if len(more) == 1:
+                    s_ = more[0]
+                    found.append(s_)
+                    far = s_.GetEnd() if key(s_.GetStart()) == k else s_.GetStart()
+                    todo.append((key(far), s_.GetLayer(), far))
+            else:
+                far = item.GetEnd() if key(item.GetStart()) == k else item.GetStart()
+                todo.append((key(far), item.GetLayer(), far))
+        return found
+
+    def save(self, check=True, dry_run=False):
         """Apply the queued adds and removes, write the board, then refill zones and run DRC with schematic
-        parity (check=False skips both). Returns the DRC report."""
+        parity (check=False skips both). Returns the DRC report. dry_run=True writes to a temporary copy of the
+        project instead and runs DRC there: the board file is untouched, so a route can be tried and rerun."""
         if self._saved:
             raise RuntimeError("already saved; edit again from a new process")
         b = self.board
@@ -616,13 +721,19 @@ class Board:
                 for x, y in pts:
                     ol.Append(MM(x), MM(y))
                 b.Add(z)
-        b.Save(self.path)
         self._saved = True
-        print(f"saved {os.path.basename(self.path)}: +{sum(len(p) - 1 for _, p, _, _ in self._tracks)} tracks, "
-              f"+{len(self._vias)} vias, +{len(self._zones)} zones, -{len(removals)} removed, "
-              f"{len(self._net_changes)} pad nets changed")
-        if check:
-            return drc(self.path)
+        summary = (f"+{sum(len(p) - 1 for _, p, _, _ in self._tracks)} tracks, +{len(self._vias)} vias, "
+                   f"+{len(self._zones)} zones, -{len(removals)} removed, {len(self._net_changes)} pad nets changed")
+        if not dry_run:
+            b.Save(self.path)
+            print(f"saved {os.path.basename(self.path)}: {summary}")
+            return drc(self.path) if check else None
+        with tempfile.TemporaryDirectory() as d:
+            target = os.path.join(d, os.path.basename(self.path))
+            _copy_project(os.path.dirname(self.path), d, skip=os.path.basename(self.path))
+            b.Save(target)
+            print(f"dry run, {os.path.basename(self.path)} not written: {summary}")
+            return drc(target) if check else None
 
 
 # ----------------------------------------------------------------------------- sync with the schematic
@@ -634,7 +745,7 @@ def _sexpr(text):
         elif t == ")":
             done = stack.pop(); stack[-1].append(done)
         else:
-            stack[-1].append(t[1:-1].replace('\\"', '"').replace("\\\\", "\\") if t[0] == '"' else t)
+            stack[-1].append(re.sub(r"\\(.)", r"\1", t[1:-1]) if t[0] == '"' else t)
     return stack[0][0]
 
 
@@ -667,6 +778,10 @@ def sync(board_path, x0=None, y0=None):
     board = pcbnew.LoadBoard(path)
     on_board = {fp.GetReference(): fp for fp in board.GetFootprints()}
     nets = {p.GetNetname(): p.GetNet() for p in board.GetPads()}
+    for name in set(pin_net.values()) - set(nets):           # nets that so far exist only on tracks or pours
+        found = board.FindNet(name)
+        if found:
+            nets[name] = found
     routed = set()
     for t in board.GetTracks():
         for pad in board.GetPads():
@@ -674,7 +789,7 @@ def sync(board_path, x0=None, y0=None):
                 routed.add((pad.GetParentFootprint().GetReference(), pad.GetNumber()))
     if x0 is None:
         bb = board.GetBoardEdgesBoundingBox()
-        x0, y0 = TOMM(bb.GetLeft()), TOMM(bb.GetBottom()) + 10
+        x0, y0 = TOMM(bb.GetLeft()), TOMM(bb.GetBottom()) + 10   # 10 mm below the outline, off the board
     x, seen, added, changed, renetted, restored, problems = x0, set(), [], [], [], [], []
     for comp in _get(tree, "components")[1:]:
         ref = _val(comp, "ref"); seen.add(ref)
@@ -693,7 +808,7 @@ def sync(board_path, x0=None, y0=None):
             sp = _get(comp, "sheetpath")
             fp.SetPath(pcbnew.KIID_PATH(_val(sp, "tstamps") + _val(comp, "tstamps")))
             fp.SetSheetname(_val(sp, "names")); fp.SetSheetfile(props.get("Sheetfile", ""))
-            fp.SetPosition(V(x, y0)); x += 8
+            fp.SetPosition(V(x, y0)); x += 8                # 8 mm apart: a row that's easy to pick from
             for p in fp.Pads():
                 name = pin_net.get((ref, p.GetNumber()))
                 if name is not None:
@@ -754,9 +869,9 @@ def sync(board_path, x0=None, y0=None):
     return problems
 
 
-def new_board(path, w, h, x0=100.0, y0=100.0, r=1.0, holes=None, inset=3.0, layers=2, thickness=1.6):
-    """Create a board with a rounded w x h outline and optional mounting holes ("M2.5" or "M3") inset from the
-    corners. Run sync() next to bring the parts in."""
+def new_board(path, w, h, x0=100.0, y0=100.0, r=1.0, holes=None, inset=4.0, layers=2, thickness=1.6):
+    """Create a board with a rounded w x h outline and optional mounting holes ("M2", "M2.5" or "M3") inset from the
+    corners (4 mm keeps an M3 hole's courtyard inside the board). Run sync() next to bring the parts in."""
     path = os.path.abspath(path)
     if os.path.exists(path) and os.path.getsize(path) > 200:
         raise FileExistsError(path)
@@ -815,6 +930,19 @@ def main(argv):
             for num, (px, py, net, (w, h)) in sorted(b.pads(ref).items(),
                                                      key=lambda kv: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", kv[0])]):
                 print(f"  {num or '-':>4} ({px:g}, {py:g}) {w:g}x{h:g}  {net}")
+    elif len(argv) >= 2 and argv[0] == "tracks":
+        b = Board(argv[1], check_lock=False)
+        for t in sorted(b.board.GetTracks(), key=lambda t: (t.GetNetname(), t.GetClass())):
+            if argv[2:] and t.GetNetname() not in argv[2:]:
+                continue
+            if t.GetClass() == "PCB_VIA":
+                q = t.GetPosition()
+                print(f"{t.GetNetname()}\tvia ({TOMM(q.x):g}, {TOMM(q.y):g}) {TOMM(t.GetWidth(pcbnew.F_Cu)):g}/"
+                      f"{TOMM(t.GetDrillValue()):g}")
+            else:
+                a, c = t.GetStart(), t.GetEnd()
+                print(f"{t.GetNetname()}\t{b.board.GetLayerName(t.GetLayer())} ({TOMM(a.x):g}, {TOMM(a.y):g}) -> "
+                      f"({TOMM(c.x):g}, {TOMM(c.y):g}) w {TOMM(t.GetWidth()):g}")
     elif len(argv) in (2, 4) and argv[0] == "sync":
         sync(argv[1], *(float(v) for v in argv[2:4]))
     elif len(argv) >= 4 and argv[0] == "new":

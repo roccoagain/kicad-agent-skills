@@ -1,6 +1,6 @@
 ---
 name: kicad-part-selection
-description: "Choose real, orderable parts for a KiCad design: ratings with margin, a package suited to hand or JLC assembly, stock, lifecycle, JLC Basic vs Extended, and a footprint that matches the exact part number. Records MPN, LCSC and distributor numbers in the schematic. Use when adding or replacing a part (out of stock, obsolete), building a BOM, or when the user asks which part to use."
+description: "Chooses real, orderable parts for a KiCad design: ratings with margin, a package suited to hand or JLC assembly, stock, lifecycle, JLC Basic vs Extended, and a footprint that matches the exact part number. Records MPN, LCSC and distributor numbers in the schematic. Use when adding or replacing a part (out of stock, obsolete), building a BOM, or when the user asks which part to use."
 ---
 
 # Choose parts
@@ -16,8 +16,9 @@ Stock, prices and lifecycle change monthly. Look them up, never answer from memo
 ## 1. Requirements
 
 Take the worst cases from `kicad-design-review` and choose ratings with margin. Easy to miss:
-- **Ceramic capacitors** lose capacitance under DC bias: check the maker's curve, or rate them at about twice the
-  working voltage.
+- **Ceramic capacitors** lose capacitance under DC bias. Where the value matters (regulator input and output, timing,
+  filters), read the maker's bias curve at the working voltage; high-value parts in small cases lose most of theirs.
+  Rating at twice the working voltage is enough only for small decoupling caps.
 - **ICs:** every absolute maximum the circuit can reach, not only the supply.
 - **Ordering variants:** a value field may hold only part of the number ("TLV9061"). Read the ordering table, list
   the variants that fit (package, temperature, options), and let the user pick when it isn't obvious.
@@ -30,8 +31,8 @@ don't settle hand or machine assembly, ask. JLC Economic assembly takes 0402 and
 **JLC:**
 - Search jlcpcb.com/parts or lcsc.com.
 - Prefer **Basic** parts, which have no loading fee.
-- **Extended** parts carry a fee for each unique part on Economic assembly (about $3 in November 2026). **Preferred
-  Extended** parts skip that fee.
+- **Extended** parts carry a fee for each unique part on Economic assembly (about $3 when checked on 2026-11-05; look up
+  the current fee). **Preferred Extended** parts skip that fee.
 - Record the LCSC number (`C` + digits). Check stock against the build quantity plus attrition.
 
 **DigiKey and Mouser:**
@@ -51,8 +52,8 @@ suffixes of one part can have different pinouts.
 
 - **Match by dimensions.** Find the package code in the ordering table (TI's `DBV` is SOT-23-5, `DCK` is SC-70-5).
   Match it to a KiCad footprint by pitch, body size and pads, not by name.
-- **Check the pinout.** Compare that package's pinout with the symbol's pin numbers (`kicad-library`'s `pinpad.py`). Generic
-  symbols often assume a different pinout.
+- **Check the pinout.** Compare that package's pinout with the symbol's pin numbers (`kicad-library`'s `pinpad.py`).
+  Generic symbols often assume a different pinout.
 - **No stock footprint fits:** make one with `kicad-library`.
 
 ## 4. Record it

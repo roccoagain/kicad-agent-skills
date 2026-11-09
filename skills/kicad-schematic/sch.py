@@ -12,7 +12,8 @@
     s.label("U2", "9", "UART_TX")                         # 2.54 mm stub, then a net label
     s.connect(("U2", "4"), ("C5", "1"))                   # wire, one bend if needed
     s.nc("U2", "7")
-    s.set_field("R3", "Value", "1k")                      # existing or new part
+    s.set_field("R3", "Value", "1k")                      # existing or new part, every unit
+    s.add("Amplifier_Operational:LM358", "U3", (127, 88.9), unit=2)   # another unit; fields copied from U3
     s.refresh_symbol("MyLib:LDO")                         # re-copy a symbol changed in its library
     s.box(20, 25, 120, 85, "POWER INPUT")
     s.save()                                              # writes, adds junctions, runs ERC and lint
@@ -20,14 +21,15 @@
 Coordinates are schematic mm, y down, on the 1.27 mm grid. Rotation is counter-clockwise on screen, mirror is
 applied after rotation (as KiCad does). Every pin end comes from the library symbol, so wires always land on pins.
 
-Handled for you: copying the library symbol into lib_symbols (flattening `extends`), instances, unique references
-(`C?`, `#PWR`), UUIDs, string escaping (newlines in text), field positions from the library, and junctions where a
-wire end, pin or label lands on the middle of a wire (or three or more ends meet). New items are inserted into the
+Handled for you: copying the library symbol into lib_symbols (flattening `extends`), instances (sub-sheet paths
+found through the sheet symbols that use the file), references unique across the hierarchy (`C?`, `#PWR`), UUIDs,
+string escaping (newlines in text), field positions from the library, and junctions where a wire end, pin or label
+lands on the middle of a wire (or three or more ends meet). New items are inserted into the
 file; existing text is left byte for byte, so the diff shows only the change.
 
 Command line:
     python3 sch.py symbol Device:R_Small          # a library symbol's pins: number, name, type, offset
-    python3 sch.py pins board.kicad_sch U2        # a placed symbol's pin ends on the sheet
+    python3 sch.py pins board.kicad_sch U2 [R3]   # placed symbols' pin ends on the sheet
     python3 sch.py lint board.kicad_sch           # overlapping text, wires through parts, off-grid points
 """
 import glob
@@ -98,9 +100,20 @@ def q(s):
 
 
 def uq(tok):
-    if tok.startswith('"'):
-        return tok[1:-1].replace("\\n", "\n").replace('\\"', '"').replace("\\\\", "\\")
+    if tok.startswith('"'):                                  # one pass, so "\\n" stays a backslash and an n
+        return re.sub(r"\\(.)", lambda m: "\n" if m.group(1) == "n" else m.group(1), tok[1:-1])
     return tok
+
+
+def project_file(sheet):
+    """The .kicad_pro for a sheet: in its folder, else up to three folders above (sub-sheets in subfolders)."""
+    d = os.path.dirname(os.path.abspath(sheet))
+    for _ in range(4):
+        pros = sorted(glob.glob(os.path.join(d, "*.kicad_pro")))
+        if pros:
+            return pros[0]
+        d = os.path.dirname(d)
+    return None
 
 
 def child(n, key):
@@ -217,7 +230,9 @@ class Libraries:
                 c = [c[0], c[1].replace(f'"{pname}_', f'"{name}_')] + c[2:]
             out.append(c)
         at = next(i for i, c in enumerate(out) if isinstance(c, list) and c[0] == "symbol")
-        out[at:at] = children(s, "property")
+        own = children(s, "property")                       # the derived symbol's fields win; the parent's others
+        names = {uq(p[1]) for p in own}                     # (ki_locked, Sim.*) stay, as KiCad's flattening does
+        out[at:at] = own + [p for p in children(parent, "property") if uq(p[1]) not in names]
         return out
 
 
@@ -247,17 +262,20 @@ class Schematic:
         self._src = open(self.path).read()
         tree = parse(self._src)
         self.root_uuid = uq(child(tree, "uuid")[1])
-        self.libs = Libraries(os.path.dirname(self.path))
+        self.pro = project_file(self.path)
+        self.project_dir = os.path.dirname(self.pro) if self.pro else os.path.dirname(self.path)
+        self.libs = Libraries(self.project_dir)
         self.lib_defs = {uq(c[1]): c for c in children(child(tree, "lib_symbols") or ["lib_symbols"], "symbol")}
         self.new_libs = []
-        self.project = None
-        self.placed = {}            # ref -> {lib_id, x, y, rot, mirror, unit}
+        self.project = os.path.splitext(os.path.basename(self.pro))[0] if self.pro else None
+        self.placed = {}            # ref -> {unit: {lib_id, x, y, rot, mirror, unit, fields}}
         self.wires, self.points, self.junctions = [], [], set()
         for n in children(tree, "symbol"):
             ref = None
             inst = child(n, "instances")
             if inst:
-                proj = child(inst, "project")
+                projs = children(inst, "project")                 # this project's block, if a shared sheet
+                proj = next((pr for pr in projs if uq(pr[1]) == self.project), projs[0])
                 self.project = self.project or uq(proj[1])
                 path_ = child(proj, "path")
                 ref = uq(child(path_, "reference")[1])
@@ -265,10 +283,11 @@ class Schematic:
                 ref = next(uq(p[2]) for p in children(n, "property") if uq(p[1]) == "Reference")
             at = child(n, "at")
             mir = child(n, "mirror")
-            unit = child(n, "unit")
-            self.placed[ref] = dict(lib_id=uq(child(n, "lib_id")[1]), x=float(at[1]), y=float(at[2]),
-                                    rot=float(at[3]) if len(at) > 3 else 0, mirror=mir[1] if mir else None,
-                                    unit=int(unit[1]) if unit else 1)
+            unit = int(child(n, "unit")[1]) if child(n, "unit") else 1
+            self.placed.setdefault(ref, {})[unit] = dict(
+                lib_id=uq(child(n, "lib_id")[1]), x=float(at[1]), y=float(at[2]),
+                rot=float(at[3]) if len(at) > 3 else 0, mirror=mir[1] if mir else None, unit=unit,
+                fields={uq(p[1]): uq(p[2]) for p in children(n, "property")})
         for w in children(tree, "wire"):
             pts = [(float(p[1]), float(p[2])) for p in children(child(w, "pts"), "xy")]
             self.wires.append((pts[0], pts[1]))
@@ -280,15 +299,57 @@ class Schematic:
             at = child(j, "at")
             self.junctions.add((round(float(at[1]), 3), round(float(at[2]), 3)))
         self.project = self.project or self._project_name()
+        self.instance_paths = self._instance_paths()
         self.items = []             # new top-level s-expressions, as text
-        self.new_syms = {}          # ref -> dict for symbols added in this edit
+        self.new_syms = {}          # (ref, unit) -> dict for symbols added in this edit
         self.field_edits = []       # (ref, name, value)
         self.removals = []          # refs to remove with their stubs
         self.refreshed = []         # lib_ids whose cached copy in lib_symbols is replaced on save
+        self._new_wires, self._new_points, self._junction_keys = [], [], []   # this edit's, kept across removals
 
     def _project_name(self):
-        pros = glob.glob(os.path.join(os.path.dirname(self.path), "*.kicad_pro"))
-        return os.path.splitext(os.path.basename(pros[0] if pros else self.path))[0]
+        return os.path.splitext(os.path.basename(self.pro or self.path))[0]
+
+    def _instance_paths(self):
+        """Every hierarchical path this sheet file is used at: ["/<root uuid>"] for the root sheet, or
+        ["/<root uuid>/<sheet uuid>", ...] for a sub-sheet, found through the sheet symbols that name this file."""
+        d = self.project_dir
+        root = os.path.splitext(self.pro)[0] + ".kicad_sch" if self.pro else None
+        own = ["/" + self.root_uuid]
+        self._sheet_files = set()                           # the hierarchy's other sheet files
+        if not root or not os.path.exists(root):
+            return own
+        users = {}                                          # sheet file -> [(parent file, sheet uuid)]
+        for f in glob.glob(os.path.join(d, "**", "*.kicad_sch"), recursive=True):
+            if "-backups" in f or os.sep + ".history" in f:
+                continue
+            text = open(f).read()
+            for st, en, head in top_spans(text):
+                if head != "sheet":
+                    continue
+                n = parse(text[st:en])
+                props = {uq(p[1]): uq(p[2]) for p in children(n, "property")}
+                rel = props.get("Sheetfile", "")                   # relative to the parent sheet or project
+                target = next((t for t in (os.path.normpath(os.path.join(os.path.dirname(f), rel)),
+                                           os.path.normpath(os.path.join(d, rel))) if os.path.exists(t)), "")
+                if rel and target:
+                    users.setdefault(os.path.realpath(target), []).append((f, uq(child(n, "uuid")[1])))
+        reach, todo = set(), [os.path.realpath(root)]       # files reachable from the root sheet
+        while todo:
+            f = todo.pop()
+            if f not in reach:
+                reach.add(f)
+                todo += [t for t, us in users.items() if any(os.path.realpath(p) == f for p, _ in us)]
+        self._sheet_files = reach - {os.path.realpath(self.path)}
+        if os.path.samefile(root, self.path):
+            return own
+
+        def paths(f, seen):
+            if os.path.samefile(f, root):
+                return ["/" + uq(child(parse(open(root).read()), "uuid")[1])]
+            return [p + "/" + sheet for parent, sheet in users.get(os.path.realpath(f), []) if parent not in seen
+                    for p in paths(parent, seen | {parent})]
+        return paths(self.path, {self.path}) or own
 
     @classmethod
     def new(cls, path, title="", rev="1", date="", paper="A4"):
@@ -311,27 +372,47 @@ class Schematic:
             self.new_libs.append(d)
         return self.lib_defs[lib_id]
 
-    def _sym(self, ref):
-        s = self.new_syms.get(ref) or self.placed.get(ref)
-        if s is None:
+    def units(self, ref):
+        """{unit: placement} for every placed unit of ref (existing, and added in this edit)."""
+        out = dict(self.placed.get(ref, {}))
+        out.update({u: s for (r, u), s in self.new_syms.items() if r == ref})
+        if not out:
             raise KeyError(f"no symbol {ref!r} on {os.path.basename(self.path)}")
-        return s
+        return out
 
-    def pins(self, ref):
+    def _refs(self):
+        return set(self.placed) | {r for r, _ in self.new_syms}
+
+    def _project_refs(self):
+        """References used on the project's other sheet files, so "R?" stays unique across the hierarchy."""
+        out = set()
+        for f in self._sheet_files:
+            out |= set(re.findall(r'\(reference "([^"]+)"\)', open(f).read()))
+        return out
+
+    def pins(self, ref, unit=None):
         """{number: (x, y, out_dx, out_dy)}: each pin's end on the sheet and the direction pointing away from the
-        body. Stacked pins (same number in several places) report the first."""
-        s = self._sym(ref)
+        body, for every placed unit of ref (or just `unit`). Stacked pins (same number in several places) report the
+        first."""
         out = {}
-        for num, name, typ, px, py, ang in lib_pins(self._lib(s["lib_id"]), s["unit"]):
-            dx, dy = xf(px, py, s["rot"], s["mirror"])
-            ox, oy = xf(math.cos(math.radians(ang)), math.sin(math.radians(ang)), s["rot"], s["mirror"])
-            out.setdefault(num, (round(s["x"] + dx, 3), round(s["y"] + dy, 3), -round(ox), -round(oy)))
+        for u, s in sorted(self.units(ref).items()):
+            if unit is not None and u != unit:
+                continue
+            for num, name, typ, px, py, ang in lib_pins(self._lib(s["lib_id"]), u):
+                dx, dy = xf(px, py, s["rot"], s["mirror"])
+                ox, oy = xf(math.cos(math.radians(ang)), math.sin(math.radians(ang)), s["rot"], s["mirror"])
+                out.setdefault(num, (round(s["x"] + dx, 3), round(s["y"] + dy, 3), -round(ox), -round(oy)))
         return out
 
     def pin(self, ref, num):
         p = self.pins(ref)
         if str(num) not in p:
-            raise KeyError(f"{ref} has no pin {num!r}; pins: {sorted(p, key=_natural)}")
+            units = self.units(ref)
+            sym = self._lib(next(iter(units.values()))["lib_id"])
+            elsewhere = sorted({u for u in range(1, 64) for n, *_ in lib_pins(sym, u) if n == str(num)} - set(units))
+            hint = (f"; it's on unit {elsewhere[0]}, which isn't placed: add(lib_id, {ref!r}, at, unit={elsewhere[0]})"
+                    if elsewhere else "")
+            raise KeyError(f"{ref} has no pin {num!r}{hint}; pins: {sorted(p, key=_natural)}")
         return p[str(num)]
 
     def refresh_symbol(self, lib_id):
@@ -345,23 +426,42 @@ class Schematic:
         self.refreshed.append(lib_id)
 
     def next_ref(self, prefix):
-        used = set(self.placed) | set(self.new_syms)
+        if not hasattr(self, "_other_refs"):
+            self._other_refs = self._project_refs()
+        used = self._refs() | self._other_refs
         n = 1
         while f"{prefix}{n}" in used:
             n += 1
         return f"{prefix}{n}"
 
     # ------------------------------------------------------------------ symbols
-    def add(self, lib_id, ref, at, rot=0, mirror=None, value=None, footprint="", datasheet="~", fields=None,
+    def add(self, lib_id, ref, at, rot=0, mirror=None, value=None, footprint=None, datasheet=None, fields=None,
             unit=1, ref_at=None, value_at=None, power=False, in_bom=True, in_pos=True, dnp=False):
         """Place lib_id ("Library:Name") with its origin at `at` (mm). ref "R?" takes the next free number.
         Fields are added hidden. in_bom/in_pos/dnp: BOM, position-file and do-not-populate flags (a Tag-Connect
-        footprint or test pad is in_bom=False, in_pos=False). Returns the reference."""
+        footprint or test pad is in_bom=False, in_pos=False). For another unit of an existing multi-unit part, pass
+        its reference and unit=N: value, footprint and fields default to the placed unit's. Returns the reference."""
         if ref.endswith("?"):
             ref = self.next_ref(ref[:-1])
-        if ref in self.placed or ref in self.new_syms:
-            raise ValueError(f"{ref} already exists")
         sym = self._lib(lib_id)
+        if ref in self._refs():
+            have = self.units(ref)
+            first = next(iter(have.values()))
+            if unit in have:
+                raise ValueError(f"{ref} unit {unit} already exists")
+            if first["lib_id"] != lib_id:
+                raise ValueError(f"{ref} is a {first['lib_id']}, not {lib_id}")
+            known = first.get("fields", {})
+            value = known.get("Value") if value is None else value
+            footprint = known.get("Footprint", "") if footprint is None else footprint
+            datasheet = known.get("Datasheet", "~") if datasheet is None else datasheet
+            fields = fields if fields is not None else {
+                k: v for k, v in known.items() if k not in ("Reference", "Value", "Footprint", "Datasheet")}
+        footprint = "" if footprint is None else footprint
+        datasheet = "~" if datasheet is None else datasheet
+        if not any(int(m.group(1)) == unit for c in children(sym, "symbol")
+                   for m in [re.match(r".*_(\d+)_\d+$", uq(c[1]))] if m) and unit != 1:
+            raise ValueError(f"{lib_id} has no unit {unit}")
         x, y = at
         if abs(x / GRID - round(x / GRID)) > 1e-3 or abs(y / GRID - round(y / GRID)) > 1e-3:
             raise ValueError(f"{ref} at {at}: put symbols on the {GRID} mm grid ({snap(x)}, {snap(y)})")
@@ -370,14 +470,15 @@ class Schematic:
 
         def prop(name, val, default_hide, where=None):
             lp = lib_props.get(name)
+            # KiCad draws a field at its stored angle plus the symbol's rotation
             if where is None and lp is not None:
                 lat = child(lp, "at")
                 dx, dy = xf(float(lat[1]), float(lat[2]), rot, mirror)
                 where = (x + dx, y + dy)
-                ang = (float(lat[3]) + rot) % 180 if len(lat) > 3 else 0
+                ang = float(lat[3]) % 180 if len(lat) > 3 else 0      # turns with the symbol, as in KiCad
             else:
                 where = where or (x, y)
-                ang = 0
+                ang = -rot % 180                                    # reads horizontally on the sheet
             hide = default_hide
             eff = '(effects (font (size 1.27 1.27)))'
             if lp is not None:
@@ -394,16 +495,18 @@ class Schematic:
         props.append(prop("Value", value if value is not None else name, False, value_at))
         props.append(prop("Footprint", footprint, True))
         props.append(prop("Datasheet", datasheet, True))
-        props.append(prop("Description", "", True))
-        for k, v in (fields or {}).items():
+        fields = dict(fields or {})
+        props.append(prop("Description", fields.pop("Description", ""), True))
+        for k, v in fields.items():
             props.append(prop(k, v, True, (x, y)))
         nums = sorted({p[0] for p in lib_pins(sym, unit)}, key=_natural)
         pins = " ".join(f"(pin {q(n)} (uuid {q(U())}))" for n in nums)
         flags = ("(in_bom no) (on_board no)" if power else
                  f"(in_bom {'yes' if in_bom else 'no'}) (in_pos_files {'yes' if in_pos else 'no'}) (on_board yes)")
         flags += f" (dnp {'yes' if dnp else 'no'})"
-        self.new_syms[ref] = dict(lib_id=lib_id, x=x, y=y, rot=rot, mirror=mirror, unit=unit, props=props,
-                                  text=None, pins=pins, flags=flags)
+        self.new_syms[(ref, unit)] = dict(
+            lib_id=lib_id, x=x, y=y, rot=rot, mirror=mirror, unit=unit, props=props, pins=pins, flags=flags,
+            fields=dict(fields, Value=value if value is not None else name, Footprint=footprint, Datasheet=datasheet))
         return ref
 
     def remove(self, ref):
@@ -411,25 +514,33 @@ class Schematic:
         up to a label or power symbol. A stub stops at a branch, a junction with other wires, or another part's pin,
         so shared nets stay intact. Applied in save(); place the replacement with add() in the same script."""
         if ref not in self.placed:
-            raise KeyError(f"{ref} isn't on the sheet" + (" (added in this edit)" if ref in self.new_syms else ""))
-        self.removals.append((ref, list(self.pins(ref).values())))
+            raise KeyError(f"{ref} isn't on the sheet" + (" (added in this edit)" if ref in self._refs() else ""))
+        if any(r == ref for r, _ in self.new_syms):
+            raise ValueError(f"remove {ref} before adding units to it")
+        self.removals.append((ref, list(self.pins(ref).values())))   # every unit, and their stubs
         del self.placed[ref]                                # the reference is free for a replacement
 
     def set_field(self, ref, name, value):
         """Set a field (Value, Footprint, MPN, LCSC...) on an existing or new symbol; new fields are hidden."""
         if name == "Reference":
             raise ValueError("references are renamed in KiCad (annotation), not here")
-        s = self._sym(ref)
-        if ref in self.new_syms:
+        self.units(ref)                                     # raises if there's no such part
+        for (r, _), s in self.new_syms.items():             # every unit added in this edit
+            if r != ref:
+                continue
+            s["fields"][name] = value
             for i, p in enumerate(s["props"]):
                 if p.startswith(f"(property {q(name)} "):
                     s["props"][i] = re.sub(r'^\(property "(?:[^"\\]|\\.)*" "(?:[^"\\]|\\.)*"',
                                            lambda m: f"(property {q(name)} {q(value)}", p)
-                    return
-            s["props"].append(f'(property {q(name)} {q(value)} (at {fmt(s["x"])} {fmt(s["y"])} 0) (hide yes) '
-                              f'(effects (font (size 1.27 1.27))))')
-        else:
+                    break
+            else:
+                s["props"].append(f'(property {q(name)} {q(value)} (at {fmt(s["x"])} {fmt(s["y"])} 0) (hide yes) '
+                                  f'(effects (font (size 1.27 1.27))))')
+        if ref in self.placed:                              # every unit already in the file
             self.field_edits.append((ref, name, value))
+            for s in self.placed[ref].values():
+                s["fields"][name] = value
 
     # ------------------------------------------------------------------ wiring
     def _xy(self, p):
@@ -445,6 +556,7 @@ class Schematic:
             if abs(a[0] - b[0]) > 1e-6 and abs(a[1] - b[1]) > 1e-6:
                 raise ValueError(f"wire {a} -> {b} is diagonal; add a corner point or use connect()")
             self.wires.append((a, b))
+            self._new_wires.append((a, b))
             self.items.append(f'(wire (pts (xy {fmt(a[0])} {fmt(a[1])}) (xy {fmt(b[0])} {fmt(b[1])})) '
                               f'(stroke (width 0) (type default)) (uuid {q(U())}))')
 
@@ -476,6 +588,7 @@ class Schematic:
         just = "left" if angle in (0, 90) else "right"
         shape = " (shape bidirectional)" if kind == "global_label" else ""
         self.points.append((x, y))
+        self._new_points.append((x, y))
         self.items.append(f'({kind} {q(name)}{shape} (at {fmt(x)} {fmt(y)} {angle}) (effects (font (size 1.27 1.27)) '
                           f'(justify {just} bottom)) (uuid {q(U())}))')
 
@@ -505,6 +618,7 @@ class Schematic:
         key = (round(x, 3), round(y, 3))
         if key not in self.junctions:
             self.junctions.add(key)
+            self._junction_keys.append(key)
             self.items.append(f'(junction (at {fmt(x)} {fmt(y)}) (diameter 0) (color 0 0 0 0) (uuid {q(U())}))')
 
     # ------------------------------------------------------------------ drawing
@@ -528,7 +642,7 @@ class Schematic:
                 k = (round(p[0], 3), round(p[1], 3))
                 ends[k] = ends.get(k, 0) + 1
         pin_ends = []
-        for ref in list(self.placed) + list(self.new_syms):
+        for ref in self._refs():
             try:
                 pin_ends += [(round(x, 3), round(y, 3)) for x, y, _, _ in self.pins(ref).values()]
             except KeyError:
@@ -613,6 +727,9 @@ class Schematic:
                        for k in ("label", "global_label", "hierarchical_label") for lb in children(tree, k)]
         self.junctions = {(round(float(child(j, "at")[1]), 3), round(float(child(j, "at")[2]), 3))
                           for j in children(tree, "junction")}
+        self.wires += self._new_wires                       # this edit's additions aren't in the text yet
+        self.points += self._new_points
+        self.junctions |= {k for k in self._junction_keys}
         print(f"removed {', '.join(sorted(r for r, _ in self.removals))}: {len(gone)} items")
         self.removals = []
         return text
@@ -623,34 +740,38 @@ class Schematic:
         text = self._apply_removals(self._src) if self.removals else self._src
         self._auto_junctions()
         # field edits on existing symbols, inside their own blocks only
-        for ref, name, value in self.field_edits:
-            spans = [s for s in top_spans(text) if s[2] == "symbol"]
-            for st, en, _ in spans:
+        for ref, name, value in self.field_edits:          # every unit's block, last first so offsets hold
+            found = 0
+            for st, en, _ in reversed([s for s in top_spans(text) if s[2] == "symbol"]):
                 block = text[st:en]
                 if not re.search(r'\(property "Reference" ' + re.escape(q(ref)) + r'[\s)]', block) and \
                         f"(reference {q(ref)})" not in block:
                     continue
+                found += 1
                 pat = re.compile(r'(\(property ' + re.escape(q(name)) + r' )"(?:[^"\\]|\\.)*"')
                 if pat.search(block):
                     block = pat.sub(lambda m: m.group(1) + q(value), block, count=1)
                 else:
-                    s = self.placed[ref]
-                    new = (f'\n\t\t(property {q(name)} {q(value)}\n\t\t\t(at {fmt(s["x"])} {fmt(s["y"])} 0)\n'
+                    at = re.search(r'\(at ([-\d.]+) ([-\d.]+)', block)
+                    new = (f'\n\t\t(property {q(name)} {q(value)}\n\t\t\t(at {at.group(1)} {at.group(2)} 0)\n'
                            f'\t\t\t(hide yes)\n\t\t\t(effects\n\t\t\t\t(font\n\t\t\t\t\t(size 1.27 1.27)\n'
                            f'\t\t\t\t)\n\t\t\t)\n\t\t)')
                     m = re.search(r'\n\t\t\(pin ', block) or re.search(r'\n\t\t\(instances', block)
                     block = block[:m.start()] + new + block[m.start():]
                 text = text[:st] + block + text[en:]
-                break
-            else:
+            if not found:
                 raise KeyError(f"set_field: {ref} not found")
-        for ref, s in self.new_syms.items():
+        if self.new_syms and len(self.instance_paths) > 1:
+            print(f"note: this sheet is used {len(self.instance_paths)} times; new symbols get the same reference in "
+                  "each, so annotate in KiCad")
+        for (ref, _), s in self.new_syms.items():
             m = f" (mirror {s['mirror']})" if s["mirror"] else ""
             self.items.append(
                 f'(symbol (lib_id {q(s["lib_id"])}) (at {fmt(s["x"])} {fmt(s["y"])} {fmt(s["rot"])}){m} '
                 f'(unit {s["unit"]}) (exclude_from_sim no) {s["flags"]} (uuid {q(U())})\n\t\t'
                 + "\n\t\t".join(s["props"]) + f"\n\t\t{s['pins']}\n\t\t(instances (project {q(self.project)} "
-                f'(path {q("/" + self.root_uuid)} (reference {q(ref)}) (unit {s["unit"]})))))')
+                + " ".join(f'(path {q(p)} (reference {q(ref)}) (unit {s["unit"]}))' for p in self.instance_paths)
+                + ")))")
         for lib_id in dict.fromkeys(self.refreshed):
             ls = next(s for s in top_spans(text) if s[2] == "lib_symbols")
             block = text[ls[0]:ls[1]]
@@ -675,8 +796,9 @@ class Schematic:
             f.write(text)
         n_new = len(self.new_syms)
         self._src, self.items, self.new_libs, self.field_edits = text, [], [], []
-        for ref, s in self.new_syms.items():
-            self.placed[ref] = s
+        self._new_wires, self._new_points, self._junction_keys = [], [], []
+        for (ref, unit), s in self.new_syms.items():
+            self.placed.setdefault(ref, {})[unit] = s
         self.new_syms = {}
         print(f"saved {os.path.basename(self.path)}: {n_new} symbols added")
         if lint:
@@ -701,7 +823,8 @@ def erc_report(path, show=12):
     """Run KiCad's ERC; print counts and the first violations. Returns the violations."""
     with tempfile.TemporaryDirectory() as d:
         out = os.path.join(d, "erc.json")
-        r = subprocess.run([kicad_cli(), "sch", "erc", "--format", "json", "--severity-all", "-o", out, path],
+        r = subprocess.run([kicad_cli(), "sch", "erc", "--format", "json", "--severity-error", "--severity-warning",
+                            "-o", out, path],
                            capture_output=True, text=True)
         if not os.path.exists(out):
             raise RuntimeError("ERC failed (does the file load in KiCad?):\n" + r.stdout + r.stderr)
@@ -718,7 +841,7 @@ def erc_report(path, show=12):
 
 
 # ----------------------------------------------------------------------------- lint
-def _boxes_hit(a, b, m=0.0):
+def _boxes_hit(a, b, m=0.0):                           # m: overlap (mm) needed to count, below drawing noise
     return a[0] + m < b[2] and b[0] + m < a[2] and a[1] + m < b[3] and b[1] + m < a[3]
 
 
@@ -762,9 +885,11 @@ def lint(path, show=15):
     bodies, pin_segs, texts, wires = {}, [], [], list(sch.wires)
     for n in children(tree, "symbol"):
         ref = next(uq(p[2]) for p in children(n, "property") if uq(p[1]) == "Reference")
-        st = sch.placed.get(ref) or {}
+        unit = int(child(n, "unit")[1]) if child(n, "unit") else 1
+        st = sch.placed.get(ref, {}).get(unit)
         if not st:
             continue
+        body = ref if len(sch.placed[ref]) == 1 else f"{ref} unit {unit}"
         lib = sch._lib(st["lib_id"])
         base = uq(lib[1]).split(":", 1)[-1]
         pts = []
@@ -794,7 +919,7 @@ def lint(path, show=15):
                         pin_segs.append((ref, seg[0], seg[1]))
         if pts:
             sp = [(st["x"] + dx, st["y"] + dy) for dx, dy in (xf(x, y, st["rot"], st["mirror"]) for x, y in pts)]
-            bodies[ref] = (min(p[0] for p in sp), min(p[1] for p in sp), max(p[0] for p in sp), max(p[1] for p in sp))
+            bodies[body] = (min(p[0] for p in sp), min(p[1] for p in sp), max(p[0] for p in sp), max(p[1] for p in sp))
         for p in children(n, "property"):
             at = child(p, "at")
             texts.append((uq(p[2]), f"{ref} {uq(p[1])}", (float(at[1]), float(at[2])), ref))
@@ -810,7 +935,7 @@ def lint(path, show=15):
     for s_, box in _rendered_text(path):
         cands = owners.get(s_, [])
         best = min(cands, key=lambda c: math.dist(c[1], ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)), default=None)
-        if best and math.dist(best[1], ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)) < 8:
+        if best and math.dist(best[1], ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)) < 8:  # mm; a field's reach
             rendered.append((s_, best[0], best[1], best[2], box))
         else:
             rendered.append((s_, None, None, None, box))   # pin names and numbers, title block
@@ -835,7 +960,7 @@ def lint(path, show=15):
                 problems.append(f'text "{s1}" ({o1}) crosses a pin of {ref} at {where(b1)}')
                 break
         for ref, bb in bodies.items():
-            if (ref == r1 and ref.startswith("#")) or not _boxes_hit(b1, bb, 0.05):
+            if ref.split(" unit ")[0] == r1 or not _boxes_hit(b1, bb, 0.05):   # own fields may sit in the body
                 continue
             problems.append(f'text "{s1}" ({o1}) overlaps the body of {ref} at {where(b1)}')
     for p, q_ in wires:
@@ -878,10 +1003,13 @@ def main(argv):
                 print(f"unit {u}:")
             for num, nm, typ, px, py, ang in sorted(lib_pins(sym, u), key=lambda p: _natural(p[0])):
                 print(f"  {num:>4} {nm:<16} {typ:<14} at ({px:g}, {py:g}) angle {ang:g}")
-    elif len(argv) == 3 and argv[0] == "pins":
+    elif len(argv) >= 3 and argv[0] == "pins":
         s = Schematic(argv[1], check_lock=False)
-        for num, (x, y, ox, oy) in sorted(s.pins(argv[2]).items(), key=lambda kv: _natural(kv[0])):
-            print(f"  {num:>4}  ({x:g}, {y:g})  points {({(1, 0): 'right', (-1, 0): 'left', (0, -1): 'up', (0, 1): 'down'})[(ox, oy)]}")
+        way = {(1, 0): "right", (-1, 0): "left", (0, -1): "up", (0, 1): "down"}
+        for ref in argv[2:]:
+            print(ref)
+            for num, (x, y, ox, oy) in sorted(s.pins(ref).items(), key=lambda kv: _natural(kv[0])):
+                print(f"  {num:>4}  ({x:g}, {y:g})  points {way[(ox, oy)]}")
     elif len(argv) == 2 and argv[0] == "lint":
         return 1 if lint(argv[1], show=100) else 0
     else:

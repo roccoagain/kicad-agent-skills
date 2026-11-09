@@ -1,6 +1,6 @@
 ---
 name: kicad-new-project
-description: "Create a new KiCad 10 project without opening KiCad, using the scripts in kicad-schematic and kicad-board-edit: schematic and board files, layer count, thickness, design rules and net classes, rounded outline, mounting holes, parts from the schematic, ground pours, libraries, jobsets and .gitignore. Use when the user wants a new board, a new revision of an existing one, or a PCB for a schematic that doesn't have one yet."
+description: "Creates a new KiCad 10 project without opening KiCad, using the scripts in kicad-schematic and kicad-board-edit: schematic and board files, layer count, thickness, design rules and net classes, rounded outline, mounting holes, parts from the schematic, ground pours, libraries, jobsets and .gitignore. Use when the user wants a new board, a new revision of an existing one, or a PCB for a schematic that doesn't have one yet."
 ---
 
 # Start a new project
@@ -25,7 +25,7 @@ The project name is the shared stem of the `.kicad_pro`, `.kicad_sch` and `.kica
    "$KPY" -I <board-edit dir>/board.py new <dir>/<name>.kicad_pcb 50 30 --holes M3
    ```
 
-   This writes the board with a rounded 50 × 30 mm outline at (100, 100), four M3 holes 3 mm in from the corners
+   This writes the board with a rounded 50 × 30 mm outline at (100, 100), four M3 holes 4 mm in from the corners
    (board-only, so parity ignores them), and a default `.kicad_pro`. For 4 layers or another thickness, call
    `new_board(path, w, h, layers=4, thickness=1.6, holes="M2.5")` from a script. KiCad 10.0's Python can't edit
    the stackup table, so record JLC's stackup choice (made on the order page) in the design notes.
@@ -73,15 +73,21 @@ tables first. To make the parts themselves, see `kicad-library`.
 
 - **Holes:** 2.7 mm for M2.5 and 3.2 mm for M3. Use a `_Pad` variant on GND if the chassis should be grounded
   (`b.add_footprint("H1", "MountingHole:MountingHole_3.2mm_M3_Pad", x, y)`).
+- **Screw heads and standoffs** cover more than the hole: about 5.5 mm across for M3, 4.5 mm for M2.5. Keep tracks
+  and other nets' copper out of that circle on both sides; the plain `MountingHole` footprints don't stop it.
+- **Enclosure fit:** check part heights and connector overhang against the enclosure in the STEP export
+  (`kicad-fab-export`).
 - **Odd shapes:** for anything other than a rounded rectangle, draw segments and arcs on Edge.Cuts. The outline must
   close exactly, or DRC reports `invalid_outline`.
 
 ## Housekeeping
 
 - **`.gitignore`:** `*.kicad_prl`, `~*.lck`, `.history/`, `*-backups/`, `fp-info-cache`.
-- **Jobsets:** copy in `jlc-fab.kicad_jobset`, plus `jlc-assembly.kicad_jobset` if JLC assembles the board. Set the zip
-  name.
+- **Jobsets:** copy in `jlc-fab.kicad_jobset`, plus `jlc-assembly.kicad_jobset` if JLC assembles the board (then add
+  `F.Paste`/`B.Paste` to the fab jobset's layers for the stencil). Set the zip name.
 - **`DESIGN.md`:** the board's purpose, supplies, what each connector can see, layers, stackup and fab, and the
-  decisions the user accepted, with reasons. Other skills read it.
+  decisions the user accepted, with reasons. Other skills read it. List the connections that define the design as
+  `` `U2.4 = +3V3` `` or `` `U2.4 == C3.1` `` lines; `view.py expect board.kicad_sch DESIGN.md` checks them after
+  every schematic change.
 - **Test plan:** start one with `kicad-bringup` once the schematic settles.
 - **CLAUDE.md or AGENTS.md:** if the project has one, note the skills it uses and the `KPY` path.

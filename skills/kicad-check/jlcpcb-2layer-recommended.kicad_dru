@@ -19,6 +19,7 @@
 (rule "JLC copper to board edge"
 	(constraint edge_clearance (min 0.2mm)))
 
+# Unlike the limits file, the hole rules here keep JLC's 6.3 mm drill maximum: bigger holes are milled, a warning.
 (rule "JLC hole size"
 	(condition "A.Type == 'Pad' || A.Type == 'Via'")
 	(constraint hole_size (min 0.15mm) (max 6.3mm)))
