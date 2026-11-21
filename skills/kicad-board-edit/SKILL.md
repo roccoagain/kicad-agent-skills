@@ -31,6 +31,7 @@ P = b.pad                                         # P("U2", "4") -> (x, y), afte
 b.via(119.0, 112.6, "/SDA")                       # 0.6 / 0.3 mm
 b.gnd_via("C3", "2", dx=0, dy=1.2)                # via plus a stub from the pad
 b.zone("GND", ["F.Cu", "B.Cu"])                   # pour over the outline; thermal reliefs (pads="solid": see routing)
+b.pad_connection("J1", "2", "thermal")            # how pours join this pad: "thermal", "solid", "none"; None = zone's
 b.set_pad_net("J2", "2", "/NRST")                 # only after the same change in the schematic
 b.remove_tracks(nets=["/SDA"], region=(115, 110, 135, 120))   # or nets=["*"]; b.remove_zones()
 b.remove_tracks(refs=["R3", "D1"])                # the copper hanging off these parts, up to the next pad/branch
@@ -44,8 +45,8 @@ b.save(dry_run=True)                              # or: DRC on a temporary copy;
 ```
 
 Command line, with `KPY`:
-- `board.py pads board.kicad_pcb [REF ...]`: each part's position, and every pad's centre, size and net. Plan from
-  this.
+- `board.py pads board.kicad_pcb [REF ...]`: each part's position, and every pad's centre, size and net, and the
+  pad's own zone connection when it overrides the zone's. Plan from this.
 - `board.py tracks board.kicad_pcb [NET ...]`: every track's ends, layer and width, and every via. To join a net that
   already has copper, end the new track exactly on one of these points (or put a via there).
 - `board.py nets board.kicad_pcb`: each net's routed length, narrowest and widest track, layers and vias, and each
