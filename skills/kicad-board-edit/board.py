@@ -159,6 +159,13 @@ def drc(board_path, refill=True, parity=True, rules=None, show=15):
     return rep
 
 
+# How pours join a pad, for Board.pad_connection(); None follows the zone's own setting.
+_CONNECTIONS = {"thermal": pcbnew.ZONE_CONNECTION_THERMAL, "solid": pcbnew.ZONE_CONNECTION_FULL,
+                "none": pcbnew.ZONE_CONNECTION_NONE, None: pcbnew.ZONE_CONNECTION_INHERITED}
+_CONNECTION_NAMES = {v: k for k, v in _CONNECTIONS.items() if k}
+_CONNECTION_NAMES[pcbnew.ZONE_CONNECTION_THT_THERMAL] = "thermal for through-hole only"
+
+
 # ----------------------------------------------------------------------------- the board
 class Board:
     def __init__(self, path, check_lock=True):
@@ -175,7 +182,7 @@ class Board:
         for z in self.board.Zones():
             self.nets.setdefault(z.GetNetname(), z.GetNet())
         self._tracks, self._vias, self._zones, self._removes, self._net_changes, self._shapes = [], [], [], [], [], []
-        self._fp_adds, self._fp_removes, self._texts = [], [], []
+        self._fp_adds, self._fp_removes, self._texts, self._pad_connections = [], [], [], []
         self._saved = False
 
     # ------------------------------------------------------------------ reading
@@ -397,6 +404,16 @@ class Board:
         self._net(net)
         self._zones.append((net, [self._layer(l) for l in layers], outline, clearance, min_width, priority,
                             thermal_gap, spoke, pads))
+
+    def pad_connection(self, ref, num, how):
+        """How pours join a pad, overriding its zones: "thermal" (reliefs), "solid", "none", or None to inherit
+        again (the footprint's setting if it has one, else the zone's). Every pad with that number changes, such
+        as all of a connector's shield tabs. A through-hole pad wants reliefs to solder well; both pads of a small
+        chip part want the same joint, or it tombstones."""
+        self._pad(ref, num)
+        if how not in _CONNECTIONS:
+            raise ValueError(f"how must be one of {sorted(map(str, _CONNECTIONS))}, not {how!r}")
+        self._pad_connections.append((ref, str(num), how))
 
     def set_pad_net(self, ref, num, net):
         """Move a pad to another existing net (after the same change in the schematic)."""
@@ -707,9 +724,13 @@ class Board:
         b = self.board
         removals = self._selected_removals()               # reads before any mutation
         pads = {(r, n): self._pad(r, n) for r, n, _ in self._net_changes}
+        repeated = {(r, n): [p for p in self._fp(r).Pads() if p.GetNumber() == n] for r, n, _ in self._pad_connections}
         edge = self._edge()
         for (r, n, net) in self._net_changes:
             pads[(r, n)].SetNet(self.nets[net])
+        for (r, n, how) in self._pad_connections:
+            for p in repeated[(r, n)]:
+                p.SetLocalZoneConnection(_CONNECTIONS[how])
         for item in removals:
             b.Remove(item)
         for fp in self._fp_removes:
@@ -754,7 +775,8 @@ class Board:
                 b.Add(z)
         self._saved = True
         summary = (f"+{sum(len(p) - 1 for _, p, _, _ in self._tracks)} tracks, +{len(self._vias)} vias, "
-                   f"+{len(self._zones)} zones, -{len(removals)} removed, {len(self._net_changes)} pad nets changed")
+                   f"+{len(self._zones)} zones, -{len(removals)} removed, {len(self._net_changes)} pad nets changed, "
+                   f"{len(self._pad_connections)} pad zone connections set")
         if not dry_run:
             b.Save(self.path)
             print(f"saved {os.path.basename(self.path)}: {summary}")
@@ -960,7 +982,10 @@ def main(argv):
             print(f"{ref} at ({x:g}, {y:g}) rot {rot:g}{' bottom' if b.fps[ref].IsFlipped() else ''}")
             for num, (px, py, net, (w, h)) in sorted(b.pads(ref).items(),
                                                      key=lambda kv: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", kv[0])]):
-                print(f"  {num or '-':>4} ({px:g}, {py:g}) {w:g}x{h:g}  {net}")
+                hows = {_CONNECTION_NAMES.get(p.GetLocalZoneConnection())
+                        for p in b.fps[ref].Pads() if p.GetNumber() == num}
+                how = "/".join(sorted(h or "zone's" for h in hows)) if hows != {None} else None
+                print(f"  {num or '-':>4} ({px:g}, {py:g}) {w:g}x{h:g}  {net}{f'  zone: {how}' if how else ''}")
     elif len(argv) >= 2 and argv[0] == "nets":
         Board(argv[1], check_lock=False).net_stats()
     elif len(argv) >= 2 and argv[0] == "tracks":

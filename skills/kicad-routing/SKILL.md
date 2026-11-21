@@ -67,7 +67,8 @@ enforces the clearance.
 
 - **Pad connections:** keep thermal reliefs (the default). A solid connection on one pad of an 0402/0201 tombstones
   it in reflow, and through-hole pads tied solid to a pour are hard to hand-solder, which is how JLC fits through-hole
-  parts. `zone(..., pads="solid")` suits a pour that only meets exposed or power pads. A "starved thermal" error on
+  parts. `zone(..., pads="solid")` suits a pour that only meets exposed or power pads; to join just an exposed pad
+  solidly, keep the zone's reliefs and use `pad_connection(ref, num, "solid")`. A "starved thermal" error on
   a pad boxed in by tracks: connect it with a track or a via.
 - **Boxed-in pads:** a pour only reaches a pad through a gap at least its minimum width; a ground pad hemmed in by
   tracks stays unconnected even when poured solid (DRC lists it). Give each SMD ground pad its own `gnd_via()` to
