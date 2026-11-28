@@ -2,11 +2,8 @@
   {
     "skills": [
       "kicad-schematic",
-      "kicad-board-edit",
-      "kicad-placement",
-      "kicad-routing",
-      "kicad-check",
-      "kicad-view"
+      "kicad-board",
+      "kicad-check"
     ],
     "query": "Add a status LED with a series resistor from /OUT to GND on this board, about 2 mA at 5 V.",
     "files": [
@@ -26,8 +23,8 @@
   {
     "skills": [
       "kicad-bringup",
-      "kicad-view",
-      "kicad-schematic-review"
+      "kicad-check",
+      "kicad-review"
     ],
     "query": "Write the Stage 1 unpowered resistance checks for this board's TEST_PLAN.md.",
     "files": [
@@ -43,8 +40,7 @@
   {
     "skills": [
       "kicad-check",
-      "kicad-fab-export",
-      "kicad-assembly-export"
+      "kicad-export"
     ],
     "query": "Is this board ready to order from JLC with assembly? Make the order files.",
     "files": [
@@ -60,9 +56,8 @@
   },
   {
     "skills": [
-      "kicad-schematic-review",
-      "kicad-view",
-      "kicad-simulate"
+      "kicad-review",
+      "kicad-check"
     ],
     "query": "Review this circuit: can the IN pin take 12 V by mistake without damage?",
     "files": [
@@ -92,9 +87,9 @@
   },
   {
     "skills": [
-      "kicad-layout-review",
-      "kicad-view",
-      "kicad-board-edit"
+      "kicad-review",
+      "kicad-check",
+      "kicad-board"
     ],
     "query": "Is the layout of this board any good before I order it?",
     "files": [

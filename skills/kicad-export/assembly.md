@@ -1,11 +1,6 @@
----
-name: kicad-assembly-export
-description: "Makes JLCPCB assembly files (BOM and CPL/pick-and-place) from a KiCad 10 board and checks the order: LCSC numbers on every placed part, BOM and CPL agree, parts clear of the edge, rotations. Use when the user wants JLC to assemble a board, asks for a BOM, CPL, centroid or pick-and-place file, or adds LCSC numbers. For Gerbers, use kicad-fab-export."
----
-
 # Export a board for JLCPCB assembly
 
-`K` is `kicad-cli` (see `kicad-view`). Gerbers come from `kicad-fab-export`.
+`K` is `kicad-cli` (see `kicad-check`'s `view.md`). Gerbers: [fab.md](fab.md).
 
 ## What JLC accepts
 
@@ -25,8 +20,8 @@ From JLC's help center, read on 2026-11-05:
 ## Part numbers
 
 Each part JLC places needs an `LCSC` field (`C` + digits). Add it with `kicad-schematic`, then run `board.py sync`
-(`kicad-board-edit`). If the project already uses another field name, change `fields_ordered` in the jobset instead. To
-choose parts, use `kicad-part-selection`.
+(`kicad-board`). If the project already uses another field name, change `fields_ordered` in the jobset instead. To
+choose parts, see `kicad-schematic`'s `parts.md`.
 
 ## Setup, once per project
 
@@ -49,7 +44,7 @@ project.
 ## Export
 
 JLC cuts the stencil from the paste layers in the Gerber zip: add `F.Paste` (and `B.Paste` for bottom parts) to the
-fab jobset's layers (`kicad-fab-export`) before ordering assembly.
+fab jobset's layers ([fab.md](fab.md)) before ordering assembly.
 
 Run this after the DRC gate and the Gerbers:
 
@@ -79,7 +74,7 @@ The y values come out negative. That's expected, and they match the Gerbers.
    - **Both sides listed:** the order needs Standard assembly.
 2. **Distance from the edge.** JLC wants part bodies at least 2.5 mm from the edge, unless rails are added. First add
    any parts JLC won't place to the exclusion list in a copy of `jlcpcb-assembly.kicad_dru`, then, with KiCad's Python
-   (`kicad-board-edit`), run `drc("board.kicad_pcb", rules="<copy>", parity=False)` from `board.py`. It runs on a
+   (`kicad-board`), run `drc("board.kicad_pcb", rules="<copy>", parity=False)` from `board.py`. It runs on a
    temporary copy; the findings that matter name the rule "JLC assembly: part to board edge".
 3. **Economic or Standard:**
 

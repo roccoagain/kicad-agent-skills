@@ -7,7 +7,7 @@ description: "Writes or updates a board's bring-up and test plan (TEST_PLAN.md) 
 
 The plan should catch an assembly fault before it destroys anything, and point to the faulty part when a reading is
 wrong. Compute every expected number from the schematic and datasheets, and show the working so the number can be
-recomputed after a change. Read the circuit (`kicad-view`: the sheet plots and the pin list) and the design notes
+recomputed after a change. Read the circuit (`kicad-check`'s `view.md`: the sheet plots and the pin list) and the design notes
 first.
 
 ## TEST_PLAN.md layout
@@ -27,7 +27,7 @@ Name the fine-pitch parts and the pin pairs most likely to bridge, the polarised
 
 Check each rail to GND, and each pair of nets whose short would cause damage. Include adjacent fine-pitch pins that
 carry two different supplies, or a supply and ground. For each pair:
-- **Resistor-only paths:** give the number from `view.py ohms board.kicad_sch <net> [GND]` (`kicad-view`), which
+- **Resistor-only paths:** give the number from `view.py ohms board.kicad_sch <net> [GND]` (`kicad-check`), which
   solves the resistor network from the netlist and lists the other parts across the pair.
 - **Capacitors:** the reading starts low and climbs. Write "rises to > X" and "never below Y". X is well below the DC
   value. Y is the short limit, a few tens of Ω.
@@ -35,7 +35,7 @@ carry two different supplies, or a supply and ground. For each pair:
   can't support.
 - **Diodes or clamps across the pair:** give both polarities, and say where the red lead goes.
 
-Run the assembly-fault pass from `kicad-schematic-review` section 3. Each bridge, missing part, rotated part or
+Run the assembly-fault pass from section 3 of `kicad-review`'s `schematic.md`. Each bridge, missing part, rotated part or
 wrong-value part that would cause damage at first power must change at least one Stage 1 reading. Add steps until it
 does.
 
@@ -51,7 +51,7 @@ does.
 ## Stage 3: function, block by block
 
 For each block: the input to apply, the probe point, and the expected result with its working. Misuse cases that
-`kicad-schematic-review` says the board survives may be tested gently, at a low current limit; say what the test risks.
+the schematic review (`kicad-review`) says the board survives may be tested gently, at a low current limit; say what the test risks.
 
 ## Keeping it right
 

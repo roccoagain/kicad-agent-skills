@@ -1,8 +1,3 @@
----
-name: kicad-part-selection
-description: "Chooses real, orderable parts for a KiCad design: ratings with margin, a package suited to hand or JLC assembly, stock, lifecycle, JLC Basic vs Extended, and a footprint that matches the exact part number. Records MPN, LCSC and distributor numbers in the schematic. Use when adding or replacing a part (out of stock, obsolete), building a BOM, or when the user asks which part to use."
----
-
 # Choose parts
 
 A part counts as chosen when it has all four of these:
@@ -15,7 +10,7 @@ Stock, prices and lifecycle change monthly. Look them up, never answer from memo
 
 ## 1. Requirements
 
-Take the worst cases from `kicad-schematic-review` and choose ratings with margin. Easy to miss:
+Take the worst cases from the schematic review (`kicad-review`'s `schematic.md`) and choose ratings with margin. Easy to miss:
 - **Ceramic capacitors** lose capacitance under DC bias. Where the value matters (regulator input and output, timing,
   filters), read the maker's bias curve at the working voltage; high-value parts in small cases lose most of theirs.
   Rating at twice the working voltage is enough only for small decoupling caps.
@@ -52,17 +47,17 @@ suffixes of one part can have different pinouts.
 
 - **Match by dimensions.** Find the package code in the ordering table (TI's `DBV` is SOT-23-5, `DCK` is SC-70-5).
   Match it to a KiCad footprint by pitch, body size and pads, not by name.
-- **Check the pinout.** Compare that package's pinout with the symbol's pin numbers (`kicad-library`'s `pinpad.py`).
+- **Check the pinout.** Compare that package's pinout with the symbol's pin numbers (`pinpad.py`, see [library.md](library.md)).
   Generic symbols often assume a different pinout.
-- **No stock footprint fits:** make one with `kicad-library`.
+- **No stock footprint fits:** make one ([library.md](library.md)).
 
 ## 4. Record it
 
-Set the project's existing field set on the symbol (`kicad-schematic`). Without one: `Value`, `Footprint`,
+Set the project's existing field set on the symbol ([SKILL.md](SKILL.md)). Without one: `Value`, `Footprint`,
 `Datasheet` (a stable PDF URL), `MPN`, `Manufacturer`, and the supplier's number (`LCSC`, `DigiKey`, `Mouser`).
 
-The schematic is the BOM's source, so regenerate order files from it (`kicad-assembly-export`). Then carry the fields
-to the board with `board.py sync` (`kicad-board-edit`).
+The schematic is the BOM's source, so regenerate order files from it (`kicad-export`'s `assembly.md`). Then carry the fields
+to the board with `board.py sync` (`kicad-board`).
 
 ## Report
 

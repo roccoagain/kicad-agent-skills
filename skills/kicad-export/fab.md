@@ -1,11 +1,6 @@
----
-name: kicad-fab-export
-description: "Exports Gerbers, drill files and the JLCPCB fab zip from a KiCad 10 board, after a DRC check, and verifies the files. Also exports STEP and DXF files for enclosures. Use when the user asks for Gerbers, a fab zip, files to order a PCB, or a STEP/DXF, or after a board change in a project that keeps its fab zip. For the BOM and CPL files JLC assembly needs, use kicad-assembly-export."
----
-
 # Export a board for JLCPCB
 
-`K` is `kicad-cli`. The `kicad-view` skill gives its path for each OS.
+`K` is `kicad-cli`. `kicad-check`'s `view.md` gives its path for each OS.
 
 The template `jlc-fab.kicad_jobset`, in this skill's folder, follows JLC's KiCad guide. It produces one zip,
 `fab/<project>_gerber.zip`, containing:
@@ -83,7 +78,7 @@ copper) and JLC passes it doesn't cover.
 ```
 
 **STEP**
-- A part whose footprint names no 3D model is missing from the STEP. `board.py sync` (`kicad-board-edit`) restores
+- A part whose footprint names no 3D model is missing from the STEP. `board.py sync` (`kicad-board`) restores
   models that the API dropped.
 - Useful options: `--board-only`, `--no-dnp`, `--drill-origin`, and `--user-origin 0x0mm`.
 
@@ -98,4 +93,4 @@ These files go to the user, not into the fab zip.
 - In a project that commits its fab zip, re-export after every board change and commit the zip with that change.
 - Never edit files inside the zip. If a fab needs different settings, change the project's jobset and give the reason
   in the commit.
-- For BOM and CPL files, use `kicad-assembly-export`.
+- For BOM and CPL files, see [assembly.md](assembly.md).

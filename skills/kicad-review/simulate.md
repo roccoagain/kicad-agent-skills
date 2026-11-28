@@ -1,8 +1,3 @@
----
-name: kicad-simulate
-description: "Simulates part of a KiCad 10 schematic with ngspice from the command line: frequency response, -3 dB points, gain, clipping, transients, start-up and fault currents, using vendor models or ideal stand-ins. Use when a design decision depends on a frequency response, transient, headroom or power figure that is hard to work out by hand, or to back up a kicad-schematic-review finding."
----
-
 # Simulate a circuit
 
 Start from a specific question, such as "where is the -3 dB point?" or "does it clip at the largest input?". Simulate
@@ -12,13 +7,13 @@ used.
 ## Setup
 
 KiCad doesn't include the ngspice command-line program. Install it with `brew install ngspice` or
-`apt install ngspice`; on Windows, use the zip from ngspice.sourceforge.io. This skill was tested with ngspice 47.
+`apt install ngspice`; on Windows, use the zip from ngspice.sourceforge.io. These steps were tested with ngspice 47.
 
 Run it in batch mode: `ngspice -b deck.cir`.
 
 ## 1. Get the circuit
 
-`K` is `kicad-cli` (see `kicad-view`).
+`K` is `kicad-cli` (see `kicad-check`'s `view.md`).
 
 ```bash
 "$K" sch export netlist --format spice -o <scratch>/board.cir board.kicad_sch

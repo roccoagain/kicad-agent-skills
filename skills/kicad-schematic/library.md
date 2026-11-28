@@ -1,11 +1,6 @@
----
-name: kicad-library
-description: "Creates or fixes KiCad 10 symbols and footprints for parts that aren't in KiCad's libraries: land patterns from the datasheet or IPC-7351, pin 1, courtyard and silk, 3D models, pin stacks, and symbol pins matched to footprint pads. Also sets up project library tables. Use when a part needs a new symbol or footprint, or a footprint might be wrong. To place an existing symbol, use kicad-schematic."
----
-
 # Symbols and footprints
 
-`K` is `kicad-cli` (see `kicad-view`). Footprint mistakes (a mirrored pinout, the wrong pitch, pin 1 in the wrong
+`K` is `kicad-cli` (see `kicad-check`'s `view.md`). Footprint mistakes (a mirrored pinout, the wrong pitch, pin 1 in the wrong
 corner) are the most common reason a first board fails, so check every footprint against the datasheet by the numbers.
 
 ## Where things live
@@ -28,7 +23,7 @@ Take pad sizes from the datasheet's **recommended land pattern**, not from the p
 package's min/max dimensions:
 
 ```bash
-python3 -I <this skill>/ipc_land.py gw 5.80 6.20 0.40 1.27 0.31 0.51   # SOIC-8: span L, lead length T, lead width W
+python3 -I <skill dir>/ipc_land.py gw 5.80 6.20 0.40 1.27 0.31 0.51   # SOIC-8: span L, lead length T, lead width W
 # Z=6.90 G=3.00 X=0.60 -> pad 1.950 x 0.600 mm, pad centres at +/-2.4750 mm from the part's centre
 ```
 
@@ -143,18 +138,18 @@ A footprint file looks like this: `(footprint "Name" (version 20260206) (generat
    - pad size;
    - pin-1 position;
    - exposed pad.
-4. **Pins against pads:** `python3 <this skill>/pinpad.py <lib>.kicad_sym <Symbol> <lib>.pretty/<Footprint>.kicad_mod`
+4. **Pins against pads:** `python3 <skill dir>/pinpad.py <lib>.kicad_sym <Symbol> <lib>.pretty/<Footprint>.kicad_mod`
    lists pins without a pad and pads without a pin (native stacks expanded).
    - Both lists must be empty, unless a pad is deliberately unconnected. If so, say which.
    - Then check each pin's function against the pinout for this exact package. Other packages of the same part often
      number their pins differently.
-5. **On the board.** After `board.py sync` (`kicad-board-edit`), DRC reports any courtyard overlaps, clearance
+5. **On the board.** After `board.py sync` (`kicad-board`), DRC reports any courtyard overlaps, clearance
    problems, and `lib_footprint_mismatch`.
 
 ## Changing a part that's already in use
 
 - **Schematics:** each schematic keeps its own copy of the symbol. `lib_symbol_mismatch` catches moved pins, but not
   renamed ones. Re-copy the symbol into every schematic that uses it with
-  `s.refresh_symbol("Lib:Name")` (`kicad-schematic`), then check the netlist.
+  `s.refresh_symbol("Lib:Name")` ([SKILL.md](SKILL.md)), then check the netlist.
 - **Boards:** each board keeps its own copy of the footprint, so DRC reports `lib_footprint_mismatch`. To update it,
   delete the part, re-add it with `board.py sync`, and re-route its pads.

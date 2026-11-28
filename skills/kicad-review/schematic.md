@@ -1,17 +1,12 @@
----
-name: kicad-schematic-review
-description: "Reviews a KiCad schematic's electrical design (the circuit, not the board) against datasheets: what each connector can see (power states, misuse, ESD), absolute maximum ratings, clamp current, resistor and capacitor ratings and derating, floating inputs, interfaces between boards. Use before ordering, after a schematic change, when adding a part, or when the user asks whether an input can take a voltage or whether the design survives a fault. For the board layout, use kicad-layout-review; for ERC, DRC and manufacturing limits, kicad-check."
----
-
 # Review a schematic
 
 This covers the schematic: what each part sees electrically. Where parts sit and how they're connected on the board
-is `kicad-layout-review`.
+is [layout.md](layout.md).
 
-Read the schematic and netlist (`kicad-view`) and each part's datasheet. Two netlist checks to run first:
+Read the schematic and netlist (`kicad-check`'s `view.md`) and each part's datasheet. Two netlist checks to run first:
 `view.py decoupling` (every IC supply pin has a capacitor on its rail) and, if the design notes list key connections
 as `` `U2.4 = +3V3` `` lines, `view.py expect board.kicad_sch DESIGN.md`. Back anything that depends on a frequency
-response or transient with `kicad-simulate`. Give every number with its source. The output is a table the user can
+response or transient with a simulation ([simulate.md](simulate.md)). Give every number with its source. The output is a table the user can
 check, not a verdict.
 
 ## 1. State the environment

@@ -1,9 +1,18 @@
 ---
-name: kicad-board-edit
-description: "Edits a KiCad 10 PCB with board.py, a small library in this skill's folder run with KiCad's bundled Python: creates the board and outline, brings parts in from the schematic (sync), places and rotates parts, adds tracks, vias, pours and holes by pad, changes pad nets, places silkscreen references, then refills and runs DRC on save, or a dry run on a copy. Use when editing a .kicad_pcb in any way, or after a schematic change. For deciding where parts go or how to route, see kicad-placement and kicad-routing."
+name: kicad-board
+description: "Creates and changes KiCad 10 PCBs with board.py: starts a new project (board, schematic, rules, outline, mounting holes, libraries, jobsets), syncs parts from the schematic, decides where parts go, routes by hand (net classes, track widths, clearances, pours, differential pairs), and edits tracks, vias, zones and silkscreen, with DRC on every save. Use for a new board or revision, any .kicad_pcb edit, after a schematic change, or when planning placement or routing. To judge a finished layout, use kicad-review."
 ---
 
-# Edit a board
+# Create and edit boards
+
+| Task | Read first |
+|---|---|
+| Any board edit | this file |
+| Start a new project or revision | [new-project.md](new-project.md) |
+| Plan or redo a placement | [placement.md](placement.md) |
+| Route, choose widths and net classes, add pours | [routing.md](routing.md) |
+
+## Edit a board
 
 Make every change with `board.py` (this skill's folder), from a short script in `<scratch>`. Run it with KiCad's
 bundled Python (`KPY`):
@@ -30,7 +39,7 @@ b.track("/SDA", [("U2", "11"), (119.0, 112.6), (128.9, 112.6)], layer="B.Cu")   
 P = b.pad                                         # P("U2", "4") -> (x, y), after the moves above
 b.via(119.0, 112.6, "/SDA")                       # 0.6 / 0.3 mm
 b.gnd_via("C3", "2", dx=0, dy=1.2)                # via plus a stub from the pad
-b.zone("GND", ["F.Cu", "B.Cu"])                   # pour over the outline; thermal reliefs (pads="solid": see routing)
+b.zone("GND", ["F.Cu", "B.Cu"])                   # pour over the outline; thermal reliefs (pads="solid": see routing.md)
 b.pad_connection("J1", "2", "thermal")            # how pours join this pad: "thermal", "solid", "none"; None = zone's
 b.set_pad_net("J2", "2", "/NRST")                 # only after the same change in the schematic
 b.remove_tracks(nets=["/SDA"], region=(115, 110, 135, 120))   # or nets=["*"]; b.remove_zones()
@@ -61,10 +70,10 @@ Command line, with `KPY`:
 - `board.py new board.kicad_pcb W H --holes M3`: a new board with a rounded W × H outline at (100, 100) and four
   mounting holes 4 mm in from the corners.
 - `board.py rules board.kicad_pro --power +5V,+3V3,GND --power-width 0.5`: JLC-safe minimums, a 0.2/0.25 mm Default
-  class and a Power class, written to the `.kicad_pro` (`set_rules()` for other classes; see `kicad-routing`).
+  class and a Power class, written to the `.kicad_pro` (`set_rules()` for other classes; see [routing.md](routing.md)).
 
 In a script, `drc("board.kicad_pcb", rules="other.kicad_dru", parity=False)` (from `board`) runs DRC on a temporary
-copy against another rule file, such as `kicad-assembly-export`'s edge-clearance rule.
+copy against another rule file, such as `kicad-export`'s edge-clearance rule (`jlcpcb-assembly.kicad_dru`).
 
 Lengths are mm in board coordinates (y down). Points are `(x, y)` or a pad `(ref, num)`. `connect()` and `track()`
 draw the geometry they're given and don't steer around other copper: the DRC from `save(dry_run=True)` shows what
@@ -72,7 +81,7 @@ they hit. Track widths default to
 the net's class in the `.kicad_pro`. A two-pad part at 0° has pad 1 on the left; at 90°, pad 1 is below;
 at 270°, above. `gnd_via()` draws its stub on F.Cu unless you pass `layer="B.Cu"` for a bottom-side pad.
 
-## Rules
+### Rules
 
 - **One save per process.** In KiCad 10's bindings, objects read after anything is added or removed come back
   broken. So `board.py` queues tracks, vias, zones and removals until `save()`. Read every pad position before
@@ -98,10 +107,10 @@ at 270°, above. `gnd_via()` draws its stub on F.Cu unless you pass `layer="B.Cu
 - **Plan from numbers.** Take positions from `pads`, not from a picture. Keep tracks at 0°/45°/90°, leaving one
   clearance plus half a track width from other copper.
 
-## After each edit
+### After each edit
 
 1. Read the DRC summary `save()` prints. While placing, unconnected items are expected; nothing else is.
-2. Look at the change: `view.py pcb board.kicad_pcb --around U2` (`kicad-view`).
+2. Look at the change: `view.py pcb board.kicad_pcb --around U2` (`kicad-check`'s `view.md`).
 3. Run the full check before committing (`kicad-check`): ERC, DRC, and JLC's limits.
 4. Update the design notes if they describe placement or routing.
 

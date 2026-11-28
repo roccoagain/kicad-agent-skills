@@ -1,11 +1,6 @@
----
-name: kicad-routing
-description: "Routes a KiCad 10 board by hand with board.py: net classes and rules, track width for current, clearance for voltage, ground pours and return paths, differential pairs and impedance, then DRC until nothing is unrouted. Use when routing or re-routing, choosing track widths or net classes, or adding pours. Edits are made with kicad-board-edit; to judge a finished layout, use kicad-layout-review."
----
-
 # Route a board
 
-Route by hand, net by net, after placement (`kicad-placement`), with `board.py` (`kicad-board-edit`): `connect`,
+Route by hand, net by net, after placement ([placement.md](placement.md)), with `board.py` ([SKILL.md](SKILL.md)): `connect`,
 `track`, `via`, `gnd_via` and `zone`. Run DRC (printed on every save) until nothing is unconnected.
 
 ## Rules and net classes
@@ -74,7 +69,7 @@ enforces the clearance.
   tracks stays unconnected even when poured solid (DRC lists it). Give each SMD ground pad its own `gnd_via()` to
   the other layer's pour as you route, rather than relying on the top pour.
 - **Dead copper:** keep island removal on (`island_removal_mode 0`).
-- **After filling,** look at each copper layer (`view.py pcb --layers B.Cu`): a route can pass DRC and still cut a
+- **After filling,** look at each copper layer (`view.py pcb --layers B.Cu`, in `kicad-check`): a route can pass DRC and still cut a
   pour into islands or leave a fast signal without ground under it.
 
 ## Differential pairs and impedance

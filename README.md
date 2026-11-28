@@ -13,21 +13,14 @@ agent that reads the open [Agent Skills](https://agentskills.io) format, such as
 
 | Skill | What it does |
 |---|---|
-| `kicad-new-project` | Create the project, schematic and board files, rules, outline, jobsets |
-| `kicad-schematic` | Draw and edit the schematic with `sch.py`; ERC and lint on every save |
-| `kicad-library` | Make and check symbols and footprints (`ipc_land.py`, `pinpad.py`) |
-| `kicad-part-selection` | Choose orderable parts, JLC Basic/Extended, BOM fields |
-| `kicad-view` | Cropped plots, pin nets, resistance between nets, connection and decoupling checks, revision diffs with `view.py` |
-| `kicad-placement` | Place parts; compare candidates with `board.py score` |
-| `kicad-routing` | Route by hand: net classes, widths, clearances, pours |
-| `kicad-board-edit` | Board, sync from schematic, placement, tracks, vias, pours with `board.py` |
-| `kicad-check` | ERC, DRC and JLCPCB's limits in one run with `check.py` |
-| `kicad-schematic-review` | Review the schematic's circuit against datasheets |
-| `kicad-layout-review` | Review the finished board layout against datasheets and the circuit |
-| `kicad-simulate` | Simulate a stage with ngspice |
-| `kicad-fab-export` | Gerber and drill zip, STEP and DXF |
-| `kicad-assembly-export` | JLC BOM and CPL, with order checks (`jlc_asm.py`) |
+| `kicad-schematic` | Draw and edit the schematic with `sch.py` (ERC and lint on every save); make symbols and footprints (`ipc_land.py`, `pinpad.py`); choose orderable parts |
+| `kicad-board` | New projects; sync, placement, routing, vias and pours with `board.py` |
+| `kicad-check` | Plots, pin nets, connection checks and revision diffs with `view.py`; ERC, DRC and JLCPCB's limits with `check.py` |
+| `kicad-review` | Review the schematic and the board layout against datasheets; simulate stages with ngspice |
+| `kicad-export` | Gerber and drill zip, JLC BOM and CPL with order checks (`jlc_asm.py`), STEP and DXF |
 | `kicad-bringup` | Write the bring-up and test plan |
+
+Each skill's `SKILL.md` points to a file per task, read only when needed.
 
 ## Requirements
 
@@ -49,6 +42,15 @@ Update with `npx skills update -g`. To edit the skills, symlink each folder in `
 
 Other skill sets may share some of these names, so install only one set.
 
+Earlier versions had 15 skills. If you installed those, remove them before installing again, or the agent will see
+both sets:
+
+```bash
+npx skills remove -g -a claude-code codex -y kicad-assembly-export kicad-board-edit kicad-bringup kicad-check \
+  kicad-fab-export kicad-layout-review kicad-library kicad-new-project kicad-part-selection kicad-placement \
+  kicad-routing kicad-schematic kicad-schematic-review kicad-simulate kicad-view
+```
+
 ## Testing
 
 ```bash
@@ -66,7 +68,7 @@ what it does with the expected behaviour, with each model you plan to use.
 ## Limits
 
 - JLCPCB numbers were read from JLC's pages on 2026-11-05. Re-check them before an order.
-- KiCad 10.0.5's API has bugs that `kicad-board-edit` works around.
+- KiCad 10.0.5's API has bugs that `kicad-board` works around.
 - Reviews and simulations show their numbers and sources so you can check them.
 
 ## License

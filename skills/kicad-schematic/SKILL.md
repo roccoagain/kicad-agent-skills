@@ -1,9 +1,17 @@
 ---
 name: kicad-schematic
-description: "Edits or draws a KiCad 10 schematic with sch.py, a small Python library in this skill's folder: adds symbols (including multi-unit parts), wires, labels, power symbols and no-connects by pin, changes values and fields, then checks with ERC and carries the change to the board. Use when making any schematic change, such as adding a part, connecting nets or changing a value, and when drawing a new schematic. To create a symbol, use kicad-library."
+description: "Works on a KiCad 10 schematic and its parts: draws and edits sheets with sch.py (symbols, wires, labels, power symbols, values, fields), creates or fixes symbols and footprints from datasheets, and chooses orderable parts (ratings, package, stock, lifecycle, JLC Basic vs Extended, LCSC and MPN fields). Use for any schematic change, such as adding or replacing a part, connecting nets or changing a value, when drawing a new schematic, when a symbol or footprint is missing or might be wrong, or when the user asks which part to use."
 ---
 
-# Change a schematic
+# Schematics, libraries and parts
+
+| Task | Read first |
+|---|---|
+| Edit or draw a schematic | this file |
+| Make, fix or check a symbol or footprint; project library tables | [library.md](library.md) |
+| Choose or replace a part; record part numbers | [parts.md](parts.md) |
+
+## Change a schematic
 
 Make every change with `sch.py` (this skill's folder) from a short script in `<scratch>`. It needs only `python3`.
 It handles the parts that go wrong by hand:
@@ -52,18 +60,18 @@ To plan a placement:
 Coordinates are sheet mm, with y pointing down; `add()` refuses a position off the 1.27 mm grid. Rotation is
 counter-clockwise, and `mirror="x"|"y"` is applied after rotating.
 
-## Before
+### Before
 
 - **Editor closed.** If the sheet is open in KiCad (`~<name>.kicad_sch.lck`), its next save overwrites your edit.
   `Schematic()` refuses to open it, so ask the user to close it.
 - **Clean git tree,** and one session per sheet: `.kicad_sch` files merge badly.
-- **Pin lists:** save `view.py pins` (`kicad-view`) for the parts you'll touch, to diff afterwards.
+- **Pin lists:** save `view.py pins` (`kicad-check`'s `view.md`) for the parts you'll touch, to diff afterwards.
 
-## Drawing
+### Drawing
 
 Follow the sheet's existing conventions: symbols, block layout, label style, power-symbol direction, value units.
 On a new sheet, KiCad's defaults. Lint must show no new problems (run `sch.py lint` before the edit to know what was
-already there); then look at the area you changed (`view.py sch --around U2,C3`).
+already there); then look at the area you changed (`view.py sch --around U2,C3`, in `kicad-check`).
 
 Facts that trip the drawing up:
 - `R_Small`/`C_Small` pin 1 is the **top** pin at rotation 0.
@@ -75,7 +83,7 @@ Facts that trip the drawing up:
 - KiCad's pair router finds differential pairs by a `+`/`-` or `P`/`N` name ending.
 - Compare each block with its datasheet's reference circuit, and report every departure and open choice you made.
 
-## Limits of sch.py
+### Limits of sch.py
 
 - **Multi-sheet designs:** it edits one sheet file at a time. New symbols on a sub-sheet get the right instance path,
   found through the sheet symbols that use the file, and `"R?"` numbers stay unique across the hierarchy. It can't
@@ -90,12 +98,12 @@ Facts that trip the drawing up:
 - **Regenerating:** don't regenerate a whole sheet once a board exists. New symbol UUIDs break the board's links to
   its symbols (parity fails). Edit in place instead.
 
-## After
+### After
 
 1. **ERC and lint** print on every save: no new errors or problems (`kicad-check` for the full run).
 2. **Netlist:** check every touched pin is on the intended net and nothing else changed (`view.py pins`, diff with
    before).
-3. **Update the board:** run `"$KPY" -I board.py sync` (`kicad-board-edit`). It adds parts, copies values and
+3. **Update the board:** run `"$KPY" -I board.py sync` (`kicad-board`). It adds parts, copies values and
    fields, and moves unrouted pads to new nets. A footprint change, or a routed pad on a changed net, needs
    re-routing.
 4. **Update the documents:** design notes, the test plan (`kicad-bringup`) if a reading changed, and the BOM/order if a

@@ -1,8 +1,3 @@
----
-name: kicad-view
-description: "Shows a KiCad 10 schematic or PCB with view.py (this skill's folder): KiCad's own plots cropped to named parts, each pin's net from KiCad's netlist, resistance between nets, checks of stated connections and decoupling, a 3D render, and a comparison of two git revisions. Use whenever a design needs looking at, before and after any edit, to check a connection, to see what a commit changed, or when the user asks to see or screenshot a board or schematic."
----
-
 # Look at a KiCad design
 
 `view.py` (this skill's folder) runs `kicad-cli` and poppler's `pdftoppm`/`pdfinfo` (`brew install poppler` or
@@ -10,7 +5,7 @@ description: "Shows a KiCad 10 schematic or PCB with view.py (this skill's folde
 never into the project, and open the PNGs to look at them.
 
 ```bash
-V=<skill dir>/view.py
+V=<skill dir>/view.py                 # this skill's folder
 python3 $V sch board.kicad_sch -o <scratch>/sheet.png                    # whole sheet
 python3 $V sch board.kicad_sch -o <scratch>/u2.png --around U2,C3       # zoomed to these symbols
 python3 $V sch board.kicad_sch -o <scratch>/a.png --zoom 120,30,80,60   # window x,y,w,h (sheet mm); --page N

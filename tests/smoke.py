@@ -23,9 +23,9 @@ import zipfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SK = os.path.join(REPO, "skills")
-SCH, BRD = f"{SK}/kicad-schematic", f"{SK}/kicad-board-edit"
-VIEW, CHECK, ASM, FAB = (f"{SK}/kicad-view/view.py", f"{SK}/kicad-check/check.py", f"{SK}/kicad-assembly-export",
-                         f"{SK}/kicad-fab-export")
+SCH, BRD = f"{SK}/kicad-schematic", f"{SK}/kicad-board"
+VIEW, CHECK = f"{SK}/kicad-check/view.py", f"{SK}/kicad-check/check.py"
+EXP = f"{SK}/kicad-export"
 KPY = os.environ.get("KPY") or "/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3"
 MARK = ".kicad-skills-testbed"
 NAME = "testbed"
@@ -147,7 +147,7 @@ print("ESCAPE", uq(q("C:\\\\docs\\\\new.pdf")) == "C:\\\\docs\\\\new.pdf")
     step("escapes round-trip", "ESCAPE True" in out, out[-400:])
     code, out = run([sys.executable, VIEW, "pins", f"{e}/edge.kicad_sch", "R2"])
     step("T-joint made in the same edit as remove() keeps its junction", "R2.2\t/W" in out, out)
-    sys.path.insert(0, f"{SK}/kicad-view")
+    sys.path.insert(0, f"{SK}/kicad-check")
     import view
     vals = [view.ohms_value(v) for v in ("10k 1%", "10K_0603", "100 Ohm", "4k7", "1M", "10m", "10uF", "DNP")]
     step("ohms value parsing", vals == [1e4, 1e4, 100, 4700, 1e6, 0.01, None, None], str(vals))
@@ -291,7 +291,7 @@ def checks_and_exports(d):
     step("view pcb back, cropped", code == 0 and os.path.getsize(f"{d}/out/bot.png") > 500, out)
 
     K = kicad_cli()
-    shutil.copy(f"{FAB}/jlc-fab.kicad_jobset", d)
+    shutil.copy(f"{EXP}/jlc-fab.kicad_jobset", d)
     code, out = run([K, "jobset", "run", "--stop-on-error", "-f", "jlc-fab.kicad_jobset", f"{NAME}.kicad_pro"], cwd=d)
     z = f"{d}/fab/{NAME}_gerber.zip"
     names = zipfile.ZipFile(z).namelist() if os.path.exists(z) else []
@@ -300,7 +300,7 @@ def checks_and_exports(d):
     missing = [w for w in want if not any(n.endswith(w) for n in names)]
     step("fab jobset: zip holds the files the skill lists", code == 0 and not missing, f"missing {missing}; {out[-600:]}")
 
-    shutil.copy(f"{ASM}/jlc-assembly.kicad_jobset", d)
+    shutil.copy(f"{EXP}/jlc-assembly.kicad_jobset", d)
     code, out = run([K, "jobset", "run", "--stop-on-error", "-f", "jlc-assembly.kicad_jobset", f"{NAME}.kicad_pro"],
                     cwd=d)
     a = f"{d}/fab/assembly"
@@ -309,10 +309,10 @@ def checks_and_exports(d):
     step("assembly jobset: BOM and the -all-pos CPL the skill names", code == 0 and f"{NAME}_bom.csv" in files
          and os.path.exists(raw), f"files {files}; {out[-600:]}")
     if os.path.exists(raw):
-        code, out = run([sys.executable, f"{ASM}/jlc_asm.py", "cpl", raw, f"{a}/{NAME}_cpl.csv"])
+        code, out = run([sys.executable, f"{EXP}/jlc_asm.py", "cpl", raw, f"{a}/{NAME}_cpl.csv"])
         cpl = open(f"{a}/{NAME}_cpl.csv").read() if code == 0 else ""
         step("jlc_asm cpl: Top/Bottom layer, raw file removed", "Top" in cpl and not os.path.exists(raw), out + cpl)
-        code, out = run([sys.executable, f"{ASM}/jlc_asm.py", "check", f"{a}/{NAME}_bom.csv", f"{a}/{NAME}_cpl.csv"])
+        code, out = run([sys.executable, f"{EXP}/jlc_asm.py", "check", f"{a}/{NAME}_bom.csv", f"{a}/{NAME}_cpl.csv"])
         step("jlc_asm check: BOM and CPL agree", code == 0, out)
 
 

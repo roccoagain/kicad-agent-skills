@@ -949,7 +949,7 @@ def new_board(path, w, h, x0=100.0, y0=100.0, r=1.0, holes=None, inset=4.0, laye
 def set_rules(pro_path, clearance=0.2, track=0.25, via=(0.6, 0.3), classes=None):
     """Set board minimums (JLC 2-layer standard process, with a little margin) and net classes in the .kicad_pro.
     classes: {"Power": {"track_width": 0.5, "nets": ["+5V", "GND"]}, ...}; patterns accept wildcards ("/USB_D*").
-    The editor must be closed. DRC enforces a class's clearance, not its width (see kicad-routing)."""
+    The editor must be closed. DRC enforces a class's clearance, not its width (see this skill's routing.md)."""
     _check_closed(pro_path)
     d = json.load(open(pro_path))
     ds = d.setdefault("board", {}).setdefault("design_settings", {})
